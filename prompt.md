@@ -68,3 +68,7 @@ MainWindow 改為 Column ，由上到下為:
 FloatingWindow 關閉按鈕旁邊新增 減號 ICON ，點擊後可將視窗縮小成一塊純色可拖動色塊，點擊色塊重新展開
 
 FloatingWindow 被拖動時，不可高於 android 的狀態欄，避免再也無法拖動視窗
+
+FloatingWindow minimized 時確保方塊一定在畫面中
+
+FloatingWindow minimized 復原後，仍然要記得 MainWindow 的列表展開收起狀態

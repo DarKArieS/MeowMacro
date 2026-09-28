@@ -42,6 +42,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
     private lateinit var windowManager: WindowManager
     private lateinit var layoutParams: WindowManager.LayoutParams
     private var overlayView: ComposeView? = null
+    private var isMinimized = false
     private lateinit var macroController: MacroController
 
     override fun onCreate() {
@@ -78,7 +79,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                 MeowMacroTheme {
                     FloatingWindow(
                         onDrag = ::moveWindowBy,
-                        onClose = ::stopSelf
+                        onClose = ::stopSelf,
+                        onMinimizedChange = ::setMinimized
                     ) {
                         MainWindow(
                             macroState = macroController.state,
@@ -95,6 +97,12 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                             onPlayClick = macroController::togglePlayback
                         )
                     }
+                }
+            }
+            // The window resizes when it is minimized or expanded; pull it back into bounds.
+            addOnLayoutChangeListener { v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                    v.post { moveWindowBy(0, 0) }
                 }
             }
         }
@@ -125,6 +133,11 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         windowManager.updateViewLayout(view, layoutParams)
     }
 
+    /** No clamping here: the window keeps its old size until the transition ends and it resizes. */
+    private fun setMinimized(minimized: Boolean) {
+        isMinimized = minimized
+    }
+
     private fun moveWindowBy(dx: Int, dy: Int): Boolean {
         val view = overlayView ?: return false
 
@@ -132,10 +145,13 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         val screen = metrics.bounds
         val topInset = 0 // 避免高於狀態欄，之後再也無法拖動視窗
 
+        // The expanded window may hang half off screen; the minimized block must stay fully on it.
+        val offX = if (isMinimized) 0 else view.width / 2
+        val offY = if (isMinimized) 0 else view.height / 2
         val x = (layoutParams.x + dx)
-            .coerceIn(-view.width / 2, screen.width() - view.width / 2)
+            .coerceIn(-offX, maxOf(-offX, screen.width() - view.width + offX))
         val y = (layoutParams.y + dy)
-            .coerceIn(topInset, maxOf(topInset, screen.height() - view.height / 2))
+            .coerceIn(topInset, maxOf(topInset, screen.height() - view.height + offY))
         if (x == layoutParams.x && y == layoutParams.y) return false
         layoutParams.x = x
         layoutParams.y = y

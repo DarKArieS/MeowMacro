@@ -26,9 +26,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,9 +50,14 @@ import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 fun FloatingWindow(
     onDrag: (dx: Int, dy: Int) -> Boolean,
     onClose: () -> Unit,
+    onMinimizedChange: (Boolean) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     var minimized by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(minimized) { onMinimizedChange(minimized) }
+    // AnimatedContent drops the expanded window while minimized; keep its saveable state
+    // (e.g. which MainWindow sections are expanded) so it comes back as it was.
+    val stateHolder = rememberSaveableStateHolder()
     AnimatedContent(
         targetState = minimized,
         transitionSpec = {
@@ -88,17 +95,20 @@ fun FloatingWindow(
         if (isMinimized) {
             MinimizedBlock(onDrag = onDrag, onExpand = { minimized = false })
         } else {
-            ExpandedWindow(
-                onDrag = onDrag,
-                onMinimize = { minimized = true },
-                onClose = onClose,
-                content = content
-            )
+            stateHolder.SaveableStateProvider(EXPANDED_STATE_KEY) {
+                ExpandedWindow(
+                    onDrag = onDrag,
+                    onMinimize = { minimized = true },
+                    onClose = onClose,
+                    content = content
+                )
+            }
         }
     }
 }
 
 private const val TRANSITION_MILLIS = 250
+private const val EXPANDED_STATE_KEY = "expanded"
 
 @Composable
 private fun ExpandedWindow(
