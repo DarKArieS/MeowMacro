@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">MeowMacro</string>
+    <string name="overlay_permission_title">需要「顯示在其他應用程式上層」權限</string>
+    <string name="overlay_permission_desc">MeowMacro 需要此權限才能以懸浮視窗顯示在其他 app 之上。</string>
+    <string name="overlay_permission_grant">前往設定授權</string>
+    <string name="overlay_close">關閉懸浮視窗</string>
+    <string name="notification_channel_name">懸浮視窗</string>
+    <string name="notification_text">懸浮視窗執行中</string>
 </resources>
