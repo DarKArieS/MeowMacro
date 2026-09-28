@@ -125,14 +125,17 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         windowManager.updateViewLayout(view, layoutParams)
     }
 
-    /** Moves the window, keeping at least half of it on screen. Returns whether it moved. */
     private fun moveWindowBy(dx: Int, dy: Int): Boolean {
         val view = overlayView ?: return false
-        val screen = windowManager.currentWindowMetrics.bounds
+
+        val metrics = windowManager.currentWindowMetrics
+        val screen = metrics.bounds
+        val topInset = 0 // 避免高於狀態欄，之後再也無法拖動視窗
+
         val x = (layoutParams.x + dx)
             .coerceIn(-view.width / 2, screen.width() - view.width / 2)
         val y = (layoutParams.y + dy)
-            .coerceIn(-view.height / 2, screen.height() - view.height / 2)
+            .coerceIn(topInset, maxOf(topInset, screen.height() - view.height / 2))
         if (x == layoutParams.x && y == layoutParams.y) return false
         layoutParams.x = x
         layoutParams.y = y
