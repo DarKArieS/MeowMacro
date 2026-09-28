@@ -23,7 +23,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.nekroz.meowmacro.MainWindow
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 
@@ -31,6 +30,7 @@ import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 fun FloatingWindow(
     onDrag: (dx: Int, dy: Int) -> Boolean,
     onClose: () -> Unit,
+    content: @Composable () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -72,8 +72,8 @@ fun FloatingWindow(
                     }
                 }
             }
-            Box(modifier = Modifier.padding(16.dp)) {
-                MainWindow(name = "Android")
+            Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                content()
             }
         }
     }
@@ -83,6 +83,11 @@ fun FloatingWindow(
 @Composable
 private fun FloatingWindowPreview() {
     MeowMacroTheme {
-        FloatingWindow(onDrag = { _, _ -> true }, onClose = {})
+        FloatingWindow(
+            onDrag = { _, _ -> true },
+            onClose = {}
+        ) {
+            Text("Content")
+        }
     }
 }

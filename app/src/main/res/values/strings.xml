@@ -6,4 +6,14 @@
     <string name="overlay_close">關閉懸浮視窗</string>
     <string name="notification_channel_name">懸浮視窗</string>
     <string name="notification_text">懸浮視窗執行中</string>
+    <string name="macro_record">開始錄製</string>
+    <string name="macro_stop_recording">停止錄製</string>
+    <string name="macro_play">播放</string>
+    <string name="macro_stop_playing">停止播放</string>
+    <string name="macro_event_count">%1$d 個事件</string>
+    <string name="macro_recording">錄製中（%1$d）</string>
+    <string name="macro_playing">播放中…</string>
+    <string name="accessibility_required">請啟用 MeowMacro 無障礙服務以錄製及播放巨集</string>
+    <string name="accessibility_service_label">MeowMacro 巨集</string>
+    <string name="accessibility_service_desc">用於將錄製的點擊與滑動送至其他 app，以及重播巨集。</string>
 </resources>

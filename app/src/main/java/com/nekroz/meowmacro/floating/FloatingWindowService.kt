@@ -14,13 +14,16 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.nekroz.meowmacro.MainWindow
 import com.nekroz.meowmacro.R
+import com.nekroz.meowmacro.macro.MacroController
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 
 /**
@@ -37,6 +40,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
     private lateinit var windowManager: WindowManager
     private lateinit var layoutParams: WindowManager.LayoutParams
     private var overlayView: ComposeView? = null
+    private lateinit var macroController: MacroController
 
     override fun onCreate() {
         // Must restore saved state while the lifecycle is still INITIALIZED.
@@ -47,6 +51,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         startInForeground()
 
         windowManager = getSystemService(WindowManager::class.java)
+        // Adds the recording overlay, so it must come before the floating window to stay below it.
+        macroController = MacroController(this, windowManager, lifecycleScope)
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -71,7 +77,14 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                     FloatingWindow(
                         onDrag = ::moveWindowBy,
                         onClose = ::stopSelf
-                    )
+                    ) {
+                        MainWindow(
+                            macroState = macroController.state,
+                            eventCount = macroController.events.size,
+                            onRecordClick = macroController::toggleRecording,
+                            onPlayClick = macroController::togglePlayback
+                        )
+                    }
                 }
             }
         }
@@ -82,6 +95,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
     override fun onDestroy() {
         overlayView?.let { windowManager.removeView(it) }
         overlayView = null
+        macroController.release()
         viewModelStore.clear()
         super.onDestroy()
     }
