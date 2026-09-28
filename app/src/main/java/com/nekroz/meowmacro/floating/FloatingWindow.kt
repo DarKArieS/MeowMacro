@@ -132,13 +132,14 @@ private fun ExpandedWindow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Only the title area is the drag handle, so the close button receives its taps.
+                    // Double-tapping it minimizes, like the minimize button.
                     Text(
                         text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier
                             .weight(1f)
-                            .rememberWindowDragModifier(onDrag)
+                            .rememberWindowDragModifier(onDrag, onDoubleClick = onMinimize)
                             // Inside the filter so the padding is part of the drag area.
                             .padding(vertical = 6.dp)
                     )

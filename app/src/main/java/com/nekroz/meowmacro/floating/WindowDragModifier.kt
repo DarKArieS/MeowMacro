@@ -30,6 +30,8 @@ fun Modifier.rememberWindowDragModifier(
     flingFriction: Float = DEFAULT_FLING_FRICTION,
     /** Called for a touch that stays within the touch slop; such a touch doesn't fling. */
     onClick: (() -> Unit)? = null,
+    /** Called for the second of two such touches in quick succession. */
+    onDoubleClick: (() -> Unit)? = null,
 ): Modifier {
     val scope = rememberCoroutineScope()
     val velocityTracker = remember { VelocityTracker.obtain() }
@@ -39,8 +41,12 @@ fun Modifier.rememberWindowDragModifier(
     val lastRaw = remember { FloatArray(2) }
     val downRaw = remember { FloatArray(2) }
     var dragging by remember { mutableStateOf(false) }
-    val touchSlop = LocalViewConfiguration.current.touchSlop
+    val viewConfiguration = LocalViewConfiguration.current
+    val touchSlop = viewConfiguration.touchSlop
     var flingJob by remember { mutableStateOf<Job?>(null) }
+    // Release time of the last tap, if the next touch can still complete a double tap.
+    var lastTapUpTime by remember { mutableStateOf<Long?>(null) }
+    var secondTap by remember { mutableStateOf(false) }
 
     fun trackVelocity(event: MotionEvent) {
         val raw = MotionEvent.obtain(event).apply { setLocation(event.rawX, event.rawY) }
@@ -59,6 +65,9 @@ fun Modifier.rememberWindowDragModifier(
                 downRaw[0] = event.rawX
                 downRaw[1] = event.rawY
                 dragging = false
+                secondTap = lastTapUpTime?.let {
+                    event.eventTime - it <= viewConfiguration.doubleTapTimeoutMillis
+                } ?: false
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -76,9 +85,16 @@ fun Modifier.rememberWindowDragModifier(
                 }
             }
 
-            MotionEvent.ACTION_UP -> if (!dragging && onClick != null) {
-                onClick()
+            MotionEvent.ACTION_UP -> if (!dragging && (onClick != null || onDoubleClick != null)) {
+                if (secondTap && onDoubleClick != null) {
+                    lastTapUpTime = null
+                    onDoubleClick()
+                } else {
+                    lastTapUpTime = event.eventTime
+                    onClick?.invoke()
+                }
             } else {
+                lastTapUpTime = null
                 trackVelocity(event)
                 velocityTracker.computeCurrentVelocity(1000)
                 val velocity = AnimationVector(velocityTracker.xVelocity, velocityTracker.yVelocity)
