@@ -25,6 +25,7 @@ import com.nekroz.meowmacro.MainWindow
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.macro.MacroController
 import com.nekroz.meowmacro.macro.MacroRepo
+import com.nekroz.meowmacro.macro.MacroState
 import com.nekroz.meowmacro.macro.gestureCount
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 
@@ -80,7 +81,9 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                     FloatingWindow(
                         onDrag = ::moveWindowBy,
                         onClose = ::stopSelf,
-                        onMinimizedChange = ::setMinimized
+                        onMinimizedChange = ::setMinimized,
+                        // Get out of the way of the gestures being played back.
+                        minimizeRequested = macroController.state == MacroState.Playing
                     ) {
                         MainWindow(
                             macroState = macroController.state,

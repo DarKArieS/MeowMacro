@@ -72,3 +72,7 @@ FloatingWindow 被拖動時，不可高於 android 的狀態欄，避免再也�
 FloatingWindow minimized 時確保方塊一定在畫面中
 
 FloatingWindow minimized 復原後，仍然要記得 MainWindow 的列表展開收起狀態
+
+FloatingWindow 雙擊兩次 app_name 時觸發 minimize
+
+播放巨集時觸發 minimize

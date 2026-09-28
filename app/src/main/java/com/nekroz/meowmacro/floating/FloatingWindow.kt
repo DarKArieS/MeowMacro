@@ -51,10 +51,13 @@ fun FloatingWindow(
     onDrag: (dx: Int, dy: Int) -> Boolean,
     onClose: () -> Unit,
     onMinimizedChange: (Boolean) -> Unit = {},
+    minimizeRequested: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     var minimized by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(minimized) { onMinimizedChange(minimized) }
+    // Minimize once each time a request starts; the user can still expand the window meanwhile.
+    LaunchedEffect(minimizeRequested) { if (minimizeRequested) minimized = true }
     // AnimatedContent drops the expanded window while minimized; keep its saveable state
     // (e.g. which MainWindow sections are expanded) so it comes back as it was.
     val stateHolder = rememberSaveableStateHolder()
@@ -178,7 +181,7 @@ private fun ExpandedWindow(
     }
 }
 
-/** Solid block standing in for the minimized window: drag to move, tap to expand. */
+/** Translucent block standing in for the minimized window: drag to move, tap to expand. */
 @Composable
 private fun MinimizedBlock(
     onDrag: (dx: Int, dy: Int) -> Boolean,
@@ -187,9 +190,9 @@ private fun MinimizedBlock(
     val expandLabel = stringResource(R.string.overlay_expand)
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.primary)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
             // The drag filter consumes the raw touches, so expose the tap to accessibility here.
             .semantics {
                 contentDescription = expandLabel
