@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -134,7 +135,7 @@ fun MainWindow(
             // intrinsic measurements, which lazy layouts don't support.
             Column(
                 modifier = Modifier
-                    .heightIn(max = 150.dp)
+                    .heightIn(max = 100.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 4.dp)
             ) {
@@ -370,6 +371,7 @@ private fun MacroRow(
     ) {
         IconButton(
             onClick = onPlayClick,
+            modifier = Modifier.size(36.dp),
             // While playing, only the playing macro's button (now a stop button) is enabled.
             enabled = when (macroState) {
                 MacroState.Idle -> macro.macro.isNotEmpty()
@@ -394,7 +396,11 @@ private fun MacroRow(
             },
             modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onDeleteClick, enabled = macroState == MacroState.Idle) {
+        IconButton(
+            onClick = onDeleteClick,
+            modifier = Modifier.size(36.dp),
+            enabled = macroState == MacroState.Idle
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_delete),
                 contentDescription = stringResource(R.string.macro_delete)
