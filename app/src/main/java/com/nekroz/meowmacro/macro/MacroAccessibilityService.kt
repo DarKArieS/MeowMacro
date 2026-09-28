@@ -33,7 +33,7 @@ class MacroAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     /** Performs [gesture] and suspends until it ends. Returns false if it was cancelled or rejected. */
-    suspend fun perform(gesture: MacroGesture): Boolean = suspendCancellableCoroutine { cont ->
+    suspend fun perform(gesture: GestureDescription): Boolean = suspendCancellableCoroutine { cont ->
         val callback = object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 cont.resume(true)
@@ -43,7 +43,7 @@ class MacroAccessibilityService : AccessibilityService() {
                 cont.resume(false)
             }
         }
-        if (!dispatchGesture(gesture.toGestureDescription(), callback, null)) {
+        if (!dispatchGesture(gesture, callback, null)) {
             cont.resume(false)
         }
     }

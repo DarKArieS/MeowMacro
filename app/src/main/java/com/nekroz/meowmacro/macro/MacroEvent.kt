@@ -4,32 +4,34 @@ import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import androidx.compose.ui.geometry.Offset
 
-/** A single recorded touch gesture, in raw screen coordinates. */
-sealed interface MacroGesture {
-    /** How long the finger stayed down, in milliseconds. */
-    val durationMillis: Long
+/** A step of a recorded macro. Positions are raw screen coordinates. */
+sealed interface MacroEvent {
 
-    data class Tap(val position: Offset, override val durationMillis: Long) : MacroGesture
+    /** Idle time between two gestures. */
+    data class Wait(val durationMillis: Long) : MacroEvent
 
-    data class Swipe(val points: List<Offset>, override val durationMillis: Long) : MacroGesture
+    /** [durationMillis] is how long the finger stayed down. */
+    data class Tap(val position: Offset, val durationMillis: Long) : MacroEvent
+
+    data class Swipe(val points: List<Offset>, val durationMillis: Long) : MacroEvent
 }
 
-/**
- * A recorded gesture plus the idle time before it: measured from the end of the previous
- * gesture to this gesture's touch down. Always 0 for the first gesture.
- */
-data class MacroEvent(val delayMillis: Long, val gesture: MacroGesture)
-
-fun MacroGesture.toGestureDescription(): GestureDescription {
+/** The gesture that performs this event, or null for a [MacroEvent.Wait]. */
+fun MacroEvent.toGestureDescription(): GestureDescription? {
     val path = Path()
-    when (this) {
-        is MacroGesture.Tap -> path.moveTo(position)
-        is MacroGesture.Swipe -> {
+    val strokeMillis = when (this) {
+        is MacroEvent.Wait -> return null
+        is MacroEvent.Tap -> {
+            path.moveTo(position)
+            durationMillis
+        }
+        is MacroEvent.Swipe -> {
             path.moveTo(points.first())
             points.drop(1).forEach { path.lineTo(it.x.coerceAtLeast(0f), it.y.coerceAtLeast(0f)) }
+            durationMillis
         }
     }
-    val duration = durationMillis.coerceIn(1, GestureDescription.getMaxGestureDuration())
+    val duration = strokeMillis.coerceIn(1, GestureDescription.getMaxGestureDuration())
     return GestureDescription.Builder()
         .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
         .build()

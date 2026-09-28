@@ -46,6 +46,10 @@ class MacroController(
     var events by mutableStateOf<List<MacroEvent>>(emptyList())
         private set
 
+    /** Number of recorded taps and swipes, not counting the waits between them. */
+    val gestureCount: Int
+        get() = events.count { it !is MacroEvent.Wait }
+
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var job: Job? = null
 
@@ -117,10 +121,14 @@ class MacroController(
         job = scope.launch {
             try {
                 for (event in recorded) {
-                    delay(event.delayMillis)
+                    if (event is MacroEvent.Wait) {
+                        delay(event.durationMillis)
+                        continue
+                    }
+                    val gesture = event.toGestureDescription() ?: continue
                     // A cancelled gesture (e.g. the user touched the screen) doesn't abort the rest.
                     val service = MacroAccessibilityService.instance ?: break
-                    service.perform(event.gesture)
+                    service.perform(gesture)
                 }
             } finally {
                 // stop() may already have moved on to a new recording.
@@ -172,13 +180,13 @@ class MacroController(
         val start = path.first()
         val isTap = path.all { (it - start).getDistance() <= touchSlop }
         val gesture = if (isTap) {
-            MacroGesture.Tap(start, duration)
+            MacroEvent.Tap(start, duration)
         } else {
-            MacroGesture.Swipe(path, duration)
+            MacroEvent.Swipe(path, duration)
         }
         // The wait before the first gesture isn't part of the macro.
-        val delay = if (events.isEmpty()) 0L else downTime - lastEventEnd
-        events = events + MacroEvent(delayMillis = delay, gesture = gesture)
+        val wait = if (events.isEmpty()) null else MacroEvent.Wait(downTime - lastEventEnd)
+        events = events + listOfNotNull(wait, gesture)
         lastEventEnd = upTime
         passThrough(gesture)
     }
@@ -188,7 +196,8 @@ class MacroController(
      * Merely making it untouchable isn't enough: the gesture would still be flagged
      * FLAG_WINDOW_IS_OBSCURED, which apps filtering obscured touches (e.g. many games) drop.
      */
-    private fun passThrough(gesture: MacroGesture) {
+    private fun passThrough(event: MacroEvent) {
+        val gesture = event.toGestureDescription() ?: return
         passThroughJob = scope.launch {
             captureView.visibility = View.INVISIBLE
             try {

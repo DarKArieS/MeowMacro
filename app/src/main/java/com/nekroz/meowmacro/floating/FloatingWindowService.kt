@@ -80,7 +80,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                     ) {
                         MainWindow(
                             macroState = macroController.state,
-                            eventCount = macroController.events.size,
+                            eventCount = macroController.gestureCount,
                             onRecordClick = macroController::toggleRecording,
                             onPlayClick = macroController::togglePlayback
                         )
