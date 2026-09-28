@@ -134,7 +134,7 @@ fun MainWindow(
             // intrinsic measurements, which lazy layouts don't support.
             Column(
                 modifier = Modifier
-                    .heightIn(max = 240.dp)
+                    .heightIn(max = 150.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 4.dp)
             ) {
@@ -365,7 +365,7 @@ private fun MacroRow(
                 onLongClick = onLongClick,
                 onClick = onClick
             ),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
