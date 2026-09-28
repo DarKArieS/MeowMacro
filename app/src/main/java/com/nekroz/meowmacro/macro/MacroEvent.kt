@@ -16,6 +16,9 @@ sealed interface MacroEvent {
     data class Swipe(val points: List<Offset>, val durationMillis: Long) : MacroEvent
 }
 
+/** Number of taps and swipes, not counting the waits between them. */
+fun List<MacroEvent>.gestureCount(): Int = count { it !is MacroEvent.Wait }
+
 /** The gesture that performs this event, or null for a [MacroEvent.Wait]. */
 fun MacroEvent.toGestureDescription(): GestureDescription? {
     val path = Path()

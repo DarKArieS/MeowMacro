@@ -12,11 +12,13 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import com.nekroz.meowmacro.R
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -30,7 +32,8 @@ const val PASS_THROUGH_DELAY_MILLIS = 50L
 private const val PASS_THROUGH_MAX_ATTEMPTS = 3
 
 /**
- * Records taps and swipes anywhere on screen and replays them with the recorded timing.
+ * Records taps and swipes anywhere on screen into the selected [Macro] and replays macros with the
+ * recorded timing. Macros are loaded from and saved to [repo].
  *
  * Recording uses a transparent full-screen overlay that must sit below the floating window, so
  * create this before adding the floating window. Each captured gesture is immediately re-injected
@@ -40,15 +43,24 @@ class MacroController(
     private val context: Context,
     private val windowManager: WindowManager,
     private val scope: CoroutineScope,
+    private val repo: MacroRepo,
 ) {
     var state by mutableStateOf(MacroState.Idle)
         private set
-    var events by mutableStateOf<List<MacroEvent>>(emptyList())
+    var macros by mutableStateOf<List<Macro>>(emptyList())
         private set
 
-    /** Number of recorded taps and swipes, not counting the waits between them. */
-    val gestureCount: Int
-        get() = events.count { it !is MacroEvent.Wait }
+    /** Index in [macros] that the next recording is saved to, or -1 when none is selected. */
+    var selectedIndex by mutableIntStateOf(-1)
+        private set
+
+    /** Index in [macros] being played, or -1. */
+    var playingIndex by mutableIntStateOf(-1)
+        private set
+
+    /** Events captured so far by the recording in progress. */
+    var recordingEvents by mutableStateOf<List<MacroEvent>>(emptyList())
+        private set
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var job: Job? = null
@@ -85,6 +97,47 @@ class MacroController(
 
     init {
         windowManager.addView(captureView, captureParams)
+        scope.launch {
+            // Keep any macro added while loading.
+            macros = repo.load() + macros
+            if (selectedIndex !in macros.indices && macros.isNotEmpty()) selectedIndex = 0
+        }
+    }
+
+    /** Appends an empty macro and selects it as the recording target. */
+    fun addMacro() {
+        if (state == MacroState.Recording) return
+        val name = context.getString(R.string.macro_default_name, macros.size + 1)
+        macros = macros + Macro(name, emptyList())
+        selectedIndex = macros.lastIndex
+        save()
+    }
+
+    fun selectMacro(index: Int) {
+        // Switching the target mid-recording would split the recording.
+        if (state == MacroState.Recording || index !in macros.indices) return
+        selectedIndex = index
+    }
+
+    /** Renames the macro at [index]; blank names are ignored. */
+    fun renameMacro(index: Int, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || index !in macros.indices) return
+        macros = macros.toMutableList().also { it[index] = it[index].copy(name = trimmed) }
+        save()
+    }
+
+    /** Removes the macro at [index]. Only allowed while idle, so indices can't shift under use. */
+    fun deleteMacro(index: Int) {
+        if (state != MacroState.Idle || index !in macros.indices) return
+        macros = macros.toMutableList().also { it.removeAt(index) }
+        selectedIndex = when {
+            index < selectedIndex -> selectedIndex - 1
+            // The selected macro itself was deleted: select its successor, or the new last one.
+            index == selectedIndex -> selectedIndex.coerceAtMost(macros.lastIndex)
+            else -> selectedIndex
+        }
+        save()
     }
 
     fun toggleRecording() {
@@ -95,10 +148,13 @@ class MacroController(
         }
     }
 
-    fun togglePlayback() {
+    fun togglePlayback(index: Int) {
         when (state) {
             MacroState.Playing -> stop()
-            MacroState.Idle -> if (events.isNotEmpty() && requireAccessibility()) startPlayback()
+            MacroState.Idle -> {
+                val events = macros.getOrNull(index)?.macro
+                if (!events.isNullOrEmpty() && requireAccessibility()) startPlayback(index, events)
+            }
             MacroState.Recording -> Unit
         }
     }
@@ -109,18 +165,19 @@ class MacroController(
     }
 
     private fun startRecording() {
-        events = emptyList()
+        if (selectedIndex !in macros.indices) addMacro()
+        recordingEvents = emptyList()
         points = null
         state = MacroState.Recording
         captureView.visibility = View.VISIBLE
     }
 
-    private fun startPlayback() {
-        val recorded = events
+    private fun startPlayback(index: Int, events: List<MacroEvent>) {
         state = MacroState.Playing
+        playingIndex = index
         job = scope.launch {
             try {
-                for (event in recorded) {
+                for (event in events) {
                     if (event is MacroEvent.Wait) {
                         delay(event.durationMillis)
                         continue
@@ -132,12 +189,16 @@ class MacroController(
                 }
             } finally {
                 // stop() may already have moved on to a new recording.
-                if (state == MacroState.Playing) state = MacroState.Idle
+                if (state == MacroState.Playing) {
+                    state = MacroState.Idle
+                    playingIndex = -1
+                }
             }
         }
     }
 
     private fun stop() {
+        if (state == MacroState.Recording) saveRecording()
         job?.cancel()
         job = null
         passThroughJob?.cancel()
@@ -145,6 +206,23 @@ class MacroController(
         points = null
         captureView.visibility = View.GONE
         state = MacroState.Idle
+        playingIndex = -1
+    }
+
+    /** Replaces the selected macro's events with the finished recording. */
+    private fun saveRecording() {
+        val index = selectedIndex
+        // An empty recording is most likely a mis-tap; don't wipe the macro with it.
+        if (recordingEvents.isEmpty() || index !in macros.indices) return
+        macros = macros.toMutableList().also { it[index] = it[index].copy(macro = recordingEvents) }
+        save()
+    }
+
+    private fun save() {
+        val snapshot = macros
+        // Undispatched so the save starts even if the scope is cancelled right after, e.g. when
+        // the service is destroyed mid-recording; the repo then finishes it regardless.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { repo.save(snapshot) }
     }
 
     private fun onCaptureTouch(event: MotionEvent) {
@@ -185,8 +263,8 @@ class MacroController(
             MacroEvent.Swipe(path, duration)
         }
         // The wait before the first gesture isn't part of the macro.
-        val wait = if (events.isEmpty()) null else MacroEvent.Wait(downTime - lastEventEnd)
-        events = events + listOfNotNull(wait, gesture)
+        val wait = if (recordingEvents.isEmpty()) null else MacroEvent.Wait(downTime - lastEventEnd)
+        recordingEvents = recordingEvents + listOfNotNull(wait, gesture)
         lastEventEnd = upTime
         passThrough(gesture)
     }

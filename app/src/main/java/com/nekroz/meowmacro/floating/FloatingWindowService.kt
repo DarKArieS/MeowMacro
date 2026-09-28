@@ -24,6 +24,8 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.nekroz.meowmacro.MainWindow
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.macro.MacroController
+import com.nekroz.meowmacro.macro.MacroRepo
+import com.nekroz.meowmacro.macro.gestureCount
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 
 /**
@@ -52,7 +54,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
 
         windowManager = getSystemService(WindowManager::class.java)
         // Adds the recording overlay, so it must come before the floating window to stay below it.
-        macroController = MacroController(this, windowManager, lifecycleScope)
+        macroController = MacroController(this, windowManager, lifecycleScope, MacroRepo(this))
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -80,8 +82,16 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                     ) {
                         MainWindow(
                             macroState = macroController.state,
-                            eventCount = macroController.gestureCount,
+                            macros = macroController.macros,
+                            selectedIndex = macroController.selectedIndex,
+                            playingIndex = macroController.playingIndex,
+                            recordingEventCount = macroController.recordingEvents.gestureCount(),
                             onRecordClick = macroController::toggleRecording,
+                            onAddClick = macroController::addMacro,
+                            onSelect = macroController::selectMacro,
+                            onDeleteClick = macroController::deleteMacro,
+                            onRename = macroController::renameMacro,
+                            onTextInputActiveChange = ::setWindowFocusable,
                             onPlayClick = macroController::togglePlayback
                         )
                     }
@@ -98,6 +108,21 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         macroController.release()
         viewModelStore.clear()
         super.onDestroy()
+    }
+
+    /**
+     * The window is normally not focusable so key input goes to the app underneath; it has to be
+     * while a text field is in use, or the keyboard can't open. Touches outside still pass through.
+     */
+    private fun setWindowFocusable(focusable: Boolean) {
+        val view = overlayView ?: return
+        layoutParams.flags = if (focusable) {
+            layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv() or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        } else {
+            layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        windowManager.updateViewLayout(view, layoutParams)
     }
 
     /** Moves the window, keeping at least half of it on screen. Returns whether it moved. */
