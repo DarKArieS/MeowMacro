@@ -65,3 +65,4 @@ MainWindow 改為 Column ，由上到下為:
 
 已錄製列表新增調整順序的滑塊
 
+FloatingWindow 關閉按鈕旁邊新增 減號 ICON ，點擊後可將視窗縮小成一塊純色可拖動色塊，點擊色塊重新展開

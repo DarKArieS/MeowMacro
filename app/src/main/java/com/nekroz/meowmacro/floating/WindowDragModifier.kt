@@ -18,6 +18,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalViewConfiguration
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 const val DEFAULT_FLING_FRICTION = 3f
@@ -27,6 +28,8 @@ const val DEFAULT_FLING_FRICTION = 3f
 fun Modifier.rememberWindowDragModifier(
     onDrag: (dx: Int, dy: Int) -> Boolean,
     flingFriction: Float = DEFAULT_FLING_FRICTION,
+    /** Called for a touch that stays within the touch slop; such a touch doesn't fling. */
+    onClick: (() -> Unit)? = null,
 ): Modifier {
     val scope = rememberCoroutineScope()
     val velocityTracker = remember { VelocityTracker.obtain() }
@@ -34,6 +37,9 @@ fun Modifier.rememberWindowDragModifier(
     // Track raw screen coordinates: local pointer positions shift as the window
     // itself moves, which would make the drag jitter and skew the velocity.
     val lastRaw = remember { FloatArray(2) }
+    val downRaw = remember { FloatArray(2) }
+    var dragging by remember { mutableStateOf(false) }
+    val touchSlop = LocalViewConfiguration.current.touchSlop
     var flingJob by remember { mutableStateOf<Job?>(null) }
 
     fun trackVelocity(event: MotionEvent) {
@@ -50,10 +56,17 @@ fun Modifier.rememberWindowDragModifier(
                 trackVelocity(event)
                 lastRaw[0] = event.rawX
                 lastRaw[1] = event.rawY
+                downRaw[0] = event.rawX
+                downRaw[1] = event.rawY
+                dragging = false
             }
 
             MotionEvent.ACTION_MOVE -> {
                 trackVelocity(event)
+                if (!dragging) {
+                    val distance = Offset(event.rawX - downRaw[0], event.rawY - downRaw[1])
+                    dragging = distance.getDistance() > touchSlop
+                }
                 val dx = (event.rawX - lastRaw[0]).toInt()
                 val dy = (event.rawY - lastRaw[1]).toInt()
                 if (dx != 0 || dy != 0) {
@@ -63,7 +76,9 @@ fun Modifier.rememberWindowDragModifier(
                 }
             }
 
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP -> if (!dragging && onClick != null) {
+                onClick()
+            } else {
                 trackVelocity(event)
                 velocityTracker.computeCurrentVelocity(1000)
                 val velocity = AnimationVector(velocityTracker.xVelocity, velocityTracker.yVelocity)
