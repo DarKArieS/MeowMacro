@@ -52,7 +52,9 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             // Not focusable: touches outside the window and key input go to the app underneath.
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            // No limits: let the window be dragged partly off screen (bounded in moveWindowBy).
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -84,11 +86,19 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         super.onDestroy()
     }
 
-    private fun moveWindowBy(dx: Int, dy: Int) {
-        val view = overlayView ?: return
-        layoutParams.x += dx
-        layoutParams.y += dy
+    /** Moves the window, keeping at least half of it on screen. Returns whether it moved. */
+    private fun moveWindowBy(dx: Int, dy: Int): Boolean {
+        val view = overlayView ?: return false
+        val screen = windowManager.currentWindowMetrics.bounds
+        val x = (layoutParams.x + dx)
+            .coerceIn(-view.width / 2, screen.width() - view.width / 2)
+        val y = (layoutParams.y + dy)
+            .coerceIn(-view.height / 2, screen.height() - view.height / 2)
+        if (x == layoutParams.x && y == layoutParams.y) return false
+        layoutParams.x = x
+        layoutParams.y = y
         windowManager.updateViewLayout(view, layoutParams)
+        return true
     }
 
     private fun startInForeground() {
