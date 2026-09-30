@@ -76,3 +76,6 @@ FloatingWindow minimized 復原後，仍然要記得 MainWindow 的列表展開�
 FloatingWindow 雙擊兩次 app_name 時觸發 minimize
 
 播放巨集時觸發 minimize
+
+播放巨集時 minimize 的方塊顏色改為綠色，播放結束改回來
+錄製巨集時也觸發 minimize ，方塊顏色改為紅色，播放結束改回來

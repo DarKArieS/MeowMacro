@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -52,6 +53,7 @@ fun FloatingWindow(
     onClose: () -> Unit,
     onMinimizedChange: (Boolean) -> Unit = {},
     minimizeRequested: Boolean = false,
+    minimizedColor: Color = MaterialTheme.colorScheme.primary,
     content: @Composable () -> Unit,
 ) {
     var minimized by rememberSaveable { mutableStateOf(false) }
@@ -96,7 +98,11 @@ fun FloatingWindow(
         label = "minimize"
     ) { isMinimized ->
         if (isMinimized) {
-            MinimizedBlock(onDrag = onDrag, onExpand = { minimized = false })
+            MinimizedBlock(
+                color = minimizedColor,
+                onDrag = onDrag,
+                onExpand = { minimized = false }
+            )
         } else {
             stateHolder.SaveableStateProvider(EXPANDED_STATE_KEY) {
                 ExpandedWindow(
@@ -184,6 +190,7 @@ private fun ExpandedWindow(
 /** Translucent block standing in for the minimized window: drag to move, tap to expand. */
 @Composable
 private fun MinimizedBlock(
+    color: Color,
     onDrag: (dx: Int, dy: Int) -> Boolean,
     onExpand: () -> Unit,
 ) {
@@ -192,7 +199,7 @@ private fun MinimizedBlock(
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+            .background(color.copy(alpha = 0.7f))
             // The drag filter consumes the raw touches, so expose the tap to accessibility here.
             .semantics {
                 contentDescription = expandLabel
@@ -209,7 +216,11 @@ private fun MinimizedBlock(
 @Composable
 private fun MinimizedBlockPreview() {
     MeowMacroTheme {
-        MinimizedBlock(onDrag = { _, _ -> true }, onExpand = {})
+        MinimizedBlock(
+            color = MaterialTheme.colorScheme.primary,
+            onDrag = { _, _ -> true },
+            onExpand = {}
+        )
     }
 }
 

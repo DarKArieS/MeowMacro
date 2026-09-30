@@ -10,6 +10,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
@@ -28,6 +29,8 @@ import com.nekroz.meowmacro.macro.MacroRepo
 import com.nekroz.meowmacro.macro.MacroState
 import com.nekroz.meowmacro.macro.gestureCount
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
+import com.nekroz.meowmacro.ui.theme.PlayingGreen
+import com.nekroz.meowmacro.ui.theme.RecordingRed
 
 /**
  * Hosts the app UI in a draggable overlay window drawn on top of other apps.
@@ -82,8 +85,14 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                         onDrag = ::moveWindowBy,
                         onClose = ::stopSelf,
                         onMinimizedChange = ::setMinimized,
-                        // Get out of the way of the gestures being played back.
-                        minimizeRequested = macroController.state == MacroState.Playing
+                        // Get out of the way of the gestures being recorded or played back,
+                        // and color the block so the running macro state stays visible.
+                        minimizeRequested = macroController.state != MacroState.Idle,
+                        minimizedColor = when (macroController.state) {
+                            MacroState.Recording -> RecordingRed
+                            MacroState.Playing -> PlayingGreen
+                            MacroState.Idle -> MaterialTheme.colorScheme.primary
+                        }
                     ) {
                         MainWindow(
                             macroState = macroController.state,
