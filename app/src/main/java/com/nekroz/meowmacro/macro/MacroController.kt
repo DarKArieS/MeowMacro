@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -38,6 +39,9 @@ private const val PASS_THROUGH_MAX_ATTEMPTS = 3
  * Recording uses a transparent full-screen overlay that must sit below the floating window, so
  * create this before adding the floating window. Each captured gesture is immediately re-injected
  * through [MacroAccessibilityService] so the app underneath still receives it.
+ *
+ * Playback stops when the user touches the screen. Touches on the floating window don't count, so
+ * the watcher window must sit below it as well.
  */
 class MacroController(
     private val context: Context,
@@ -72,6 +76,10 @@ class MacroController(
     private var downTime = 0L
     private var points: MutableList<Offset>? = null
 
+    // In-progress playback state: touches from the gesture being injected must not stop it.
+    private var gestureInFlight = false
+    private var lastGestureEnd = 0L
+
     @SuppressLint("ClickableViewAccessibility")
     private val captureView = View(context).apply {
         visibility = View.GONE
@@ -95,8 +103,34 @@ class MacroController(
         fitInsetsTypes = 0
     }
 
+    /**
+     * Zero-size window that is told about every touch landing outside it, i.e. anywhere below the
+     * floating window, without covering the app underneath.
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private val touchWatchView = View(context).apply {
+        visibility = View.GONE
+        setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) onOutsideTouch(event)
+            false
+        }
+    }
+
+    private val touchWatchParams = WindowManager.LayoutParams(
+        0,
+        0,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+    }
+
     init {
         windowManager.addView(captureView, captureParams)
+        windowManager.addView(touchWatchView, touchWatchParams)
         scope.launch {
             // Keep any macro added while loading.
             macros = repo.load() + macros
@@ -162,6 +196,7 @@ class MacroController(
     fun release() {
         stop()
         windowManager.removeView(captureView)
+        windowManager.removeView(touchWatchView)
     }
 
     private fun startRecording() {
@@ -175,6 +210,7 @@ class MacroController(
     private fun startPlayback(index: Int, events: List<MacroEvent>) {
         state = MacroState.Playing
         playingIndex = index
+        touchWatchView.visibility = View.VISIBLE
         job = scope.launch {
             try {
                 for (event in events) {
@@ -183,11 +219,19 @@ class MacroController(
                         continue
                     }
                     val gesture = event.toGestureDescription() ?: continue
-                    // A cancelled gesture (e.g. the user touched the screen) doesn't abort the rest.
                     val service = MacroAccessibilityService.instance ?: break
-                    service.perform(gesture)
+                    gestureInFlight = true
+                    val completed = try {
+                        service.perform(gesture)
+                    } finally {
+                        gestureInFlight = false
+                        lastGestureEnd = SystemClock.uptimeMillis()
+                    }
+                    // The user touching the screen cancels the injected gesture: stop playing.
+                    if (!completed) break
                 }
             } finally {
+                touchWatchView.visibility = View.GONE
                 // stop() may already have moved on to a new recording.
                 if (state == MacroState.Playing) {
                     state = MacroState.Idle
@@ -205,6 +249,7 @@ class MacroController(
         passThroughJob = null
         points = null
         captureView.visibility = View.GONE
+        touchWatchView.visibility = View.GONE
         state = MacroState.Idle
         playingIndex = -1
     }
@@ -223,6 +268,14 @@ class MacroController(
         // Undispatched so the save starts even if the scope is cancelled right after, e.g. when
         // the service is destroyed mid-recording; the repo then finishes it regardless.
         scope.launch(start = CoroutineStart.UNDISPATCHED) { repo.save(snapshot) }
+    }
+
+    private fun onOutsideTouch(event: MotionEvent) {
+        if (state != MacroState.Playing) return
+        // Our own injected gesture is reported too; its down happened before it ended. A user
+        // touch during a gesture cancels that gesture instead, which stops playback as well.
+        if (gestureInFlight || event.eventTime <= lastGestureEnd) return
+        stop()
     }
 
     private fun onCaptureTouch(event: MotionEvent) {
