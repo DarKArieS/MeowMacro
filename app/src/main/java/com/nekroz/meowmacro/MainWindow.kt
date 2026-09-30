@@ -71,6 +71,7 @@ fun MainWindow(
     onPlayClick: (index: Int) -> Unit,
     onDeleteClick: (index: Int) -> Unit,
     onRename: (index: Int, name: String) -> Unit,
+    onMove: (from: Int, to: Int) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
     onTextInputActiveChange: (active: Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -81,6 +82,8 @@ fun MainWindow(
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
     var pendingRename by rememberSaveable { mutableIntStateOf(-1) }
+    // While true, rows show move buttons instead of play/delete.
+    var reorderMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
         val selected = macros.getOrNull(selectedIndex)
         SectionHeader(
@@ -100,13 +103,37 @@ fun MainWindow(
             )
         }
         HorizontalDivider()
-        SectionHeader(
-            title = stringResource(R.string.macro_list_title, macros.size),
-            expanded = listExpanded,
-            collapseLabel = stringResource(R.string.macro_list_collapse),
-            expandLabel = stringResource(R.string.macro_list_expand),
-            onToggleExpanded = { listExpanded = !listExpanded }
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeader(
+                title = stringResource(R.string.macro_list_title, macros.size),
+                expanded = listExpanded,
+                collapseLabel = stringResource(R.string.macro_list_collapse),
+                expandLabel = stringResource(R.string.macro_list_expand),
+                onToggleExpanded = { listExpanded = !listExpanded },
+                modifier = Modifier.weight(1f)
+            )
+            if (listExpanded && (reorderMode || macros.size > 1)) {
+                IconButton(
+                    onClick = {
+                        pendingDelete = -1
+                        pendingRename = -1
+                        reorderMode = !reorderMode
+                    },
+                    modifier = Modifier.size(32.dp),
+                    // Leaving is always allowed; entering only while idle.
+                    enabled = reorderMode || macroState == MacroState.Idle
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (reorderMode) R.drawable.ic_check else R.drawable.ic_reorder
+                        ),
+                        contentDescription = stringResource(
+                            if (reorderMode) R.string.macro_reorder_done else R.string.macro_reorder
+                        )
+                    )
+                }
+            }
+        }
         val deleting = macros.getOrNull(pendingDelete)
         val renaming = macros.getOrNull(pendingRename)
         if (listExpanded && renaming != null) {
@@ -140,22 +167,35 @@ fun MainWindow(
                     .padding(bottom = 4.dp)
             ) {
                 macros.forEachIndexed { index, macro ->
-                    MacroRow(
-                        macro = macro,
-                        selected = index == selectedIndex,
-                        playing = index == playingIndex,
-                        macroState = macroState,
-                        onClick = { onSelect(index) },
-                        onLongClick = {
-                            pendingDelete = -1
-                            pendingRename = index
-                        },
-                        onPlayClick = { onPlayClick(index) },
-                        onDeleteClick = {
-                            pendingRename = -1
-                            pendingDelete = index
-                        }
-                    )
+                    if (reorderMode) {
+                        ReorderRow(
+                            macro = macro,
+                            selected = index == selectedIndex,
+                            // The controller also ignores moves unless idle.
+                            enabled = macroState == MacroState.Idle,
+                            canMoveUp = index > 0,
+                            canMoveDown = index < macros.lastIndex,
+                            onMoveUp = { onMove(index, index - 1) },
+                            onMoveDown = { onMove(index, index + 1) }
+                        )
+                    } else {
+                        MacroRow(
+                            macro = macro,
+                            selected = index == selectedIndex,
+                            playing = index == playingIndex,
+                            macroState = macroState,
+                            onClick = { onSelect(index) },
+                            onLongClick = {
+                                pendingDelete = -1
+                                pendingRename = index
+                            },
+                            onPlayClick = { onPlayClick(index) },
+                            onDeleteClick = {
+                                pendingRename = -1
+                                pendingDelete = index
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -170,12 +210,13 @@ private fun SectionHeader(
     collapseLabel: String,
     expandLabel: String,
     onToggleExpanded: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Text(
         text = title + if (expanded) " ▾" else " ▸",
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .clickable(
@@ -409,6 +450,60 @@ private fun MacroRow(
     }
 }
 
+/** A macro row in reorder mode: move buttons and the name, with nothing else clickable. */
+@Composable
+private fun ReorderRow(
+    macro: Macro,
+    selected: Boolean,
+    enabled: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+            ),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onMoveUp,
+            modifier = Modifier.size(36.dp),
+            enabled = enabled && canMoveUp
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_move_up),
+                contentDescription = stringResource(R.string.macro_move_up)
+            )
+        }
+        IconButton(
+            onClick = onMoveDown,
+            modifier = Modifier.size(36.dp),
+            enabled = enabled && canMoveDown
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_move_down),
+                contentDescription = stringResource(R.string.macro_move_down)
+            )
+        }
+        Text(
+            text = macro.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun MainWindowPreview() {
@@ -430,6 +525,7 @@ fun MainWindowPreview() {
             onPlayClick = {},
             onDeleteClick = {},
             onRename = { _, _ -> },
+            onMove = { _, _ -> },
             onTextInputActiveChange = {}
         )
     }

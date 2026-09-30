@@ -174,6 +174,22 @@ class MacroController(
         save()
     }
 
+    /** Moves the macro at [from] to [to]. Only allowed while idle, so indices can't shift under use. */
+    fun moveMacro(from: Int, to: Int) {
+        if (state != MacroState.Idle || from !in macros.indices || to !in macros.indices || from == to) {
+            return
+        }
+        macros = macros.toMutableList().also { it.add(to, it.removeAt(from)) }
+        // Keep the same macro selected.
+        selectedIndex = when (selectedIndex) {
+            from -> to
+            in (from + 1)..to -> selectedIndex - 1
+            in to..<from -> selectedIndex + 1
+            else -> selectedIndex
+        }
+        save()
+    }
+
     fun toggleRecording() {
         when (state) {
             MacroState.Recording -> stop()
