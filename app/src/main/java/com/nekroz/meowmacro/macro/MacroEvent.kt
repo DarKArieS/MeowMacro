@@ -3,6 +3,7 @@ package com.nekroz.meowmacro.macro
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 
 /** A step of a recorded macro. Positions are raw screen coordinates. */
 sealed interface MacroEvent {
@@ -18,6 +19,39 @@ sealed interface MacroEvent {
 
 /** Number of taps and swipes, not counting the waits between them. */
 fun List<MacroEvent>.gestureCount(): Int = count { it !is MacroEvent.Wait }
+
+/** Whether any tap or swipe passes through [area], given in screen coordinates. */
+fun List<MacroEvent>.touches(area: Rect): Boolean = any { event ->
+    when (event) {
+        is MacroEvent.Wait -> false
+        is MacroEvent.Tap -> area.contains(event.position)
+        // The first point is paired with itself, which also covers a single-point swipe.
+        is MacroEvent.Swipe -> event.points.indices.any { i ->
+            segmentCrosses(event.points[maxOf(i - 1, 0)], event.points[i], area)
+        }
+    }
+}
+
+/** Whether the segment from [a] to [b] passes through [area] (Liang–Barsky clipping). */
+private fun segmentCrosses(a: Offset, b: Offset, area: Rect): Boolean {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    // One entry per edge of the area: a + t * (b - a) is inside that edge where p * t <= q.
+    val p = floatArrayOf(-dx, dx, -dy, dy)
+    val q = floatArrayOf(a.x - area.left, area.right - a.x, a.y - area.top, area.bottom - a.y)
+    var tMin = 0f
+    var tMax = 1f
+    for (i in p.indices) {
+        if (p[i] == 0f) {
+            if (q[i] < 0f) return false
+            continue
+        }
+        val t = q[i] / p[i]
+        if (p[i] < 0f) tMin = maxOf(tMin, t) else tMax = minOf(tMax, t)
+        if (tMin > tMax) return false
+    }
+    return true
+}
 
 /** The gesture that performs this event, or null for a [MacroEvent.Wait]. */
 fun MacroEvent.toGestureDescription(): GestureDescription? {

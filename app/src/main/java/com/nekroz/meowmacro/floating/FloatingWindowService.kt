@@ -25,6 +25,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.nekroz.meowmacro.ui.MainWindow
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.macro.MacroController
+import com.nekroz.meowmacro.macro.MacroEvent
 import com.nekroz.meowmacro.macro.MacroRepo
 import com.nekroz.meowmacro.macro.MacroState
 import com.nekroz.meowmacro.macro.gestureCount
@@ -59,7 +60,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
 
         windowManager = getSystemService(WindowManager::class.java)
         // Adds the recording overlay, so it must come before the floating window to stay below it.
-        macroController = MacroController(this, windowManager, lifecycleScope, MacroRepo(this))
+        macroController =
+            MacroController(this, windowManager, lifecycleScope, MacroRepo(this), ::makeWayFor)
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -170,6 +172,11 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         layoutParams.y = y
         windowManager.updateViewLayout(view, layoutParams)
         return true
+    }
+
+    private suspend fun makeWayFor(events: List<MacroEvent>) {
+        val view = overlayView ?: return
+        windowManager.makeWayFor(events, view, layoutParams)
     }
 
     private fun startInForeground() {

@@ -116,6 +116,9 @@ fun FloatingWindow(
     }
 }
 
+/** Side of the square block the window minimizes to. */
+val MinimizedBlockSize = 40.dp
+
 private const val TRANSITION_MILLIS = 250
 private const val EXPANDED_STATE_KEY = "expanded"
 
@@ -197,7 +200,7 @@ private fun MinimizedBlock(
     val expandLabel = stringResource(R.string.overlay_expand)
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(MinimizedBlockSize)
             .clip(RoundedCornerShape(12.dp))
             .background(color.copy(alpha = 0.7f))
             // The drag filter consumes the raw touches, so expose the tap to accessibility here.

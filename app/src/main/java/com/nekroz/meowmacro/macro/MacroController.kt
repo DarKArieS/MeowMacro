@@ -41,13 +41,15 @@ private const val PASS_THROUGH_MAX_ATTEMPTS = 3
  * through [MacroAccessibilityService] so the app underneath still receives it.
  *
  * Playback stops when the user touches the screen. Touches on the floating window don't count, so
- * the watcher window must sit below it as well.
+ * the watcher window must sit below it as well. [beforePlayback] is given the events about to be
+ * played and has to get the floating window out of their way; the first gesture waits for it.
  */
 class MacroController(
     private val context: Context,
     private val windowManager: WindowManager,
     private val scope: CoroutineScope,
     private val repo: MacroRepo,
+    private val beforePlayback: suspend (List<MacroEvent>) -> Unit = {},
 ) {
     var state by mutableStateOf(MacroState.Idle)
         private set
@@ -229,6 +231,7 @@ class MacroController(
         touchWatchView.visibility = View.VISIBLE
         job = scope.launch {
             try {
+                beforePlayback(events)
                 for (event in events) {
                     if (event is MacroEvent.Wait) {
                         delay(event.durationMillis)
