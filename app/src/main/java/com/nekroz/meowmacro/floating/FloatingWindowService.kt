@@ -22,7 +22,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.nekroz.meowmacro.MainWindow
+import com.nekroz.meowmacro.ui.MainWindow
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.macro.MacroController
 import com.nekroz.meowmacro.macro.MacroRepo

@@ -30,8 +30,8 @@
     <string name="macro_list_title">已錄製巨集（%1$d）</string>
     <string name="macro_list_collapse">收合巨集列表</string>
     <string name="macro_list_expand">展開巨集列表</string>
-    <string name="macro_reorder">調整順序</string>
-    <string name="macro_reorder_done">完成調整順序</string>
+    <string name="macro_edit">編輯清單</string>
+    <string name="macro_edit_done">完成編輯</string>
     <string name="macro_move_up">上移</string>
     <string name="macro_move_down">下移</string>
     <string name="accessibility_required">請啟用 MeowMacro 無障礙服務以錄製及播放巨集</string>

@@ -83,3 +83,8 @@ FloatingWindow 雙擊兩次 app_name 時觸發 minimize
 播放巨集時，如果有其他觸控輸入，中斷播放
 
 我希望有介面可以調整已錄製巨集選單順序，有何建議?
+
+將已錄製巨集列表 item 的刪除按鍵移除，刪除邏輯改為跟 reorder 一樣的模式
+原本的 reorder icon 現在需要包含兩個功能，有何建議?
+
+將播放巨集的點擊事件改為整個 column item 觸發

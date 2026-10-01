@@ -1,4 +1,4 @@
-package com.nekroz.meowmacro
+package com.nekroz.meowmacro.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,6 +51,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.nekroz.meowmacro.R
+import com.nekroz.meowmacro.floating.FloatingWindow
 import com.nekroz.meowmacro.macro.Macro
 import com.nekroz.meowmacro.macro.MacroEvent
 import com.nekroz.meowmacro.macro.MacroState
@@ -82,8 +84,8 @@ fun MainWindow(
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
     var pendingRename by rememberSaveable { mutableIntStateOf(-1) }
-    // While true, rows show move buttons instead of play/delete.
-    var reorderMode by rememberSaveable { mutableStateOf(false) }
+    // While true, rows show move and delete buttons instead of play.
+    var editMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
         val selected = macros.getOrNull(selectedIndex)
         SectionHeader(
@@ -112,23 +114,23 @@ fun MainWindow(
                 onToggleExpanded = { listExpanded = !listExpanded },
                 modifier = Modifier.weight(1f)
             )
-            if (listExpanded && (reorderMode || macros.size > 1)) {
+            if (listExpanded && macros.isNotEmpty()) {
                 IconButton(
                     onClick = {
                         pendingDelete = -1
                         pendingRename = -1
-                        reorderMode = !reorderMode
+                        editMode = !editMode
                     },
                     modifier = Modifier.size(32.dp),
                     // Leaving is always allowed; entering only while idle.
-                    enabled = reorderMode || macroState == MacroState.Idle
+                    enabled = editMode || macroState == MacroState.Idle
                 ) {
                     Icon(
                         painter = painterResource(
-                            if (reorderMode) R.drawable.ic_check else R.drawable.ic_reorder
+                            if (editMode) R.drawable.ic_check else R.drawable.ic_edit
                         ),
                         contentDescription = stringResource(
-                            if (reorderMode) R.string.macro_reorder_done else R.string.macro_reorder
+                            if (editMode) R.string.macro_edit_done else R.string.macro_edit
                         )
                     )
                 }
@@ -154,6 +156,8 @@ fun MainWindow(
                 onConfirm = {
                     onDeleteClick(pendingDelete)
                     pendingDelete = -1
+                    // Nothing left to edit once the last macro is gone.
+                    if (macros.size == 1) editMode = false
                 },
                 onDismiss = { pendingDelete = -1 }
             )
@@ -162,21 +166,22 @@ fun MainWindow(
             // intrinsic measurements, which lazy layouts don't support.
             Column(
                 modifier = Modifier
-                    .heightIn(max = 100.dp)
+                    .heightIn(max = 120.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 4.dp)
             ) {
                 macros.forEachIndexed { index, macro ->
-                    if (reorderMode) {
-                        ReorderRow(
+                    if (editMode) {
+                        EditRow(
                             macro = macro,
                             selected = index == selectedIndex,
-                            // The controller also ignores moves unless idle.
+                            // The controller also ignores moves and deletes unless idle.
                             enabled = macroState == MacroState.Idle,
                             canMoveUp = index > 0,
                             canMoveDown = index < macros.lastIndex,
                             onMoveUp = { onMove(index, index - 1) },
-                            onMoveDown = { onMove(index, index + 1) }
+                            onMoveDown = { onMove(index, index + 1) },
+                            onDeleteClick = { pendingDelete = index }
                         )
                     } else {
                         MacroRow(
@@ -189,11 +194,7 @@ fun MainWindow(
                                 pendingDelete = -1
                                 pendingRename = index
                             },
-                            onPlayClick = { onPlayClick(index) },
-                            onDeleteClick = {
-                                pendingRename = -1
-                                pendingDelete = index
-                            }
+                            onPlayClick = { onPlayClick(index) }
                         )
                     }
                 }
@@ -392,8 +393,14 @@ private fun MacroRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPlayClick: () -> Unit,
-    onDeleteClick: () -> Unit,
 ) {
+    // While playing, only the playing macro can be clicked to stop; other rows just select.
+    val canPlay = when (macroState) {
+        MacroState.Idle -> macro.macro.isNotEmpty()
+        MacroState.Playing -> playing
+        MacroState.Recording -> false
+    }
+    val playLabel = stringResource(if (playing) R.string.macro_stop_playing else R.string.macro_play)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -403,28 +410,27 @@ private fun MacroRow(
             )
             .combinedClickable(
                 enabled = macroState != MacroState.Recording,
+                onClickLabel = if (canPlay) playLabel else null,
                 onLongClickLabel = stringResource(R.string.macro_rename),
                 onLongClick = onLongClick,
-                onClick = onClick
+                onClick = {
+                    onClick()
+                    if (canPlay) onPlayClick()
+                }
             ),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = onPlayClick,
-            modifier = Modifier.size(36.dp),
-            // While playing, only the playing macro's button (now a stop button) is enabled.
-            enabled = when (macroState) {
-                MacroState.Idle -> macro.macro.isNotEmpty()
-                MacroState.Playing -> playing
-                MacroState.Recording -> false
-            }
-        ) {
+        // Indicator only; the whole row is the play/stop target. Sized like an IconButton.
+        Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
             Icon(
                 painter = painterResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play),
-                contentDescription = stringResource(
-                    if (playing) R.string.macro_stop_playing else R.string.macro_play
-                )
+                contentDescription = null,
+                tint = if (canPlay) {
+                    LocalContentColor.current
+                } else {
+                    LocalContentColor.current.copy(alpha = 0.38f)
+                }
             )
         }
         Text(
@@ -437,22 +443,12 @@ private fun MacroRow(
             },
             modifier = Modifier.weight(1f)
         )
-        IconButton(
-            onClick = onDeleteClick,
-            modifier = Modifier.size(36.dp),
-            enabled = macroState == MacroState.Idle
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_delete),
-                contentDescription = stringResource(R.string.macro_delete)
-            )
-        }
     }
 }
 
-/** A macro row in reorder mode: move buttons and the name, with nothing else clickable. */
+/** A macro row in edit mode: move buttons, the name and a delete button, with nothing else clickable. */
 @Composable
-private fun ReorderRow(
+private fun EditRow(
     macro: Macro,
     selected: Boolean,
     enabled: Boolean,
@@ -460,6 +456,7 @@ private fun ReorderRow(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    onDeleteClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -501,32 +498,46 @@ private fun ReorderRow(
             },
             modifier = Modifier.weight(1f)
         )
+        IconButton(
+            onClick = onDeleteClick,
+            modifier = Modifier.size(36.dp),
+            enabled = enabled
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_delete),
+                contentDescription = stringResource(R.string.macro_delete),
+                tint = if (enabled) MaterialTheme.colorScheme.error else LocalContentColor.current
+            )
+        }
     }
 }
 
-@Preview(showBackground = true)
+@Preview
 @Composable
-fun MainWindowPreview() {
+private fun MainWindowPreview() {
     val tap = MacroEvent.Tap(Offset(100f, 200f), 50)
     MeowMacroTheme {
-        MainWindow(
-            macroState = MacroState.Idle,
-            macros = listOf(
-                Macro("巨集 1", listOf(tap)),
-                Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap)),
-                Macro("巨集 3", emptyList()),
-            ),
-            selectedIndex = 1,
-            playingIndex = -1,
-            recordingEventCount = 0,
-            onRecordClick = {},
-            onAddClick = {},
-            onSelect = {},
-            onPlayClick = {},
-            onDeleteClick = {},
-            onRename = { _, _ -> },
-            onMove = { _, _ -> },
-            onTextInputActiveChange = {}
-        )
+        // Inside the floating window, which sizes MainWindow to its content as on device.
+        FloatingWindow(onDrag = { _, _ -> true }, onClose = {}) {
+            MainWindow(
+                macroState = MacroState.Idle,
+                macros = listOf(
+                    Macro("巨集 1", listOf(tap)),
+                    Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap)),
+                    Macro("巨集 3", emptyList()),
+                ),
+                selectedIndex = 1,
+                playingIndex = -1,
+                recordingEventCount = 0,
+                onRecordClick = {},
+                onAddClick = {},
+                onSelect = {},
+                onPlayClick = {},
+                onDeleteClick = {},
+                onRename = { _, _ -> },
+                onMove = { _, _ -> },
+                onTextInputActiveChange = {}
+            )
+        }
     }
 }
