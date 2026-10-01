@@ -163,6 +163,14 @@ class MacroController(
         save()
     }
 
+    /** Enables or disables the macro at [index]. Only allowed while idle, so it can't be playing. */
+    fun setMacroEnabled(index: Int, enabled: Boolean) {
+        if (state != MacroState.Idle || index !in macros.indices) return
+        if (macros[index].isEnabled == enabled) return
+        macros = macros.toMutableList().also { it[index] = it[index].copy(isEnabled = enabled) }
+        save()
+    }
+
     /** Removes the macro at [index]. Only allowed while idle, so indices can't shift under use. */
     fun deleteMacro(index: Int) {
         if (state != MacroState.Idle || index !in macros.indices) return
@@ -204,8 +212,9 @@ class MacroController(
         when (state) {
             MacroState.Playing -> stop()
             MacroState.Idle -> {
-                val events = macros.getOrNull(index)?.macro
-                if (!events.isNullOrEmpty() && requireAccessibility()) startPlayback(index, events)
+                val macro = macros.getOrNull(index)
+                if (macro == null || !macro.isEnabled || macro.macro.isEmpty()) return
+                if (requireAccessibility()) startPlayback(index, macro.macro)
             }
             MacroState.Recording -> Unit
         }

@@ -60,7 +60,7 @@ class MacroRepo(context: Context) {
 }
 
 // JSON format:
-// [{"name": "…", "events": [
+// [{"name": "…", "enabled": true, "events": [
 //     {"type": "wait", "duration": 120},
 //     {"type": "tap", "x": 1.0, "y": 2.0, "duration": 80},
 //     {"type": "swipe", "points": [x0, y0, x1, y1, …], "duration": 300}]}]
@@ -69,6 +69,7 @@ private fun macrosToJson(macros: List<Macro>) = JSONArray().apply {
     for (macro in macros) {
         put(JSONObject().apply {
             put("name", macro.name)
+            put("enabled", macro.isEnabled)
             put("events", JSONArray().apply { macro.macro.forEach { put(eventToJson(it)) } })
         })
     }
@@ -104,7 +105,9 @@ private fun parseMacros(json: JSONArray): List<Macro> = List(json.length()) { i 
     val events = obj.getJSONArray("events")
     Macro(
         name = obj.getString("name"),
-        macro = List(events.length()) { parseEvent(events.getJSONObject(it)) }
+        macro = List(events.length()) { parseEvent(events.getJSONObject(it)) },
+        // Absent in files saved before macros could be disabled.
+        isEnabled = obj.optBoolean("enabled", true)
     )
 }
 

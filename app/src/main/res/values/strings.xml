@@ -34,6 +34,8 @@
     <string name="macro_edit_done">完成編輯</string>
     <string name="macro_move_up">上移</string>
     <string name="macro_move_down">下移</string>
+    <string name="macro_enable">啟用巨集</string>
+    <string name="macro_disable">停用巨集</string>
     <string name="accessibility_required">請啟用 MeowMacro 無障礙服務以錄製及播放巨集</string>
     <string name="accessibility_service_label">MeowMacro 巨集</string>
     <string name="accessibility_service_desc">用於將錄製的點擊與滑動送至其他 app，以及重播巨集。</string>

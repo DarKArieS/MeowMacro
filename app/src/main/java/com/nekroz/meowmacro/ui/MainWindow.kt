@@ -74,6 +74,7 @@ fun MainWindow(
     onDeleteClick: (index: Int) -> Unit,
     onRename: (index: Int, name: String) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
+    onEnabledChange: (index: Int, enabled: Boolean) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
     onTextInputActiveChange: (active: Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -84,7 +85,7 @@ fun MainWindow(
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
     var pendingRename by rememberSaveable { mutableIntStateOf(-1) }
-    // While true, rows show move and delete buttons instead of play.
+    // While true, rows show move, enable and delete buttons instead of play.
     var editMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
         val selected = macros.getOrNull(selectedIndex)
@@ -175,12 +176,13 @@ fun MainWindow(
                         EditRow(
                             macro = macro,
                             selected = index == selectedIndex,
-                            // The controller also ignores moves and deletes unless idle.
+                            // The controller also ignores edits unless idle.
                             enabled = macroState == MacroState.Idle,
                             canMoveUp = index > 0,
                             canMoveDown = index < macros.lastIndex,
                             onMoveUp = { onMove(index, index - 1) },
                             onMoveDown = { onMove(index, index + 1) },
+                            onEnabledChange = { onEnabledChange(index, it) },
                             onDeleteClick = { pendingDelete = index }
                         )
                     } else {
@@ -396,7 +398,7 @@ private fun MacroRow(
 ) {
     // While playing, only the playing macro can be clicked to stop; other rows just select.
     val canPlay = when (macroState) {
-        MacroState.Idle -> macro.macro.isNotEmpty()
+        MacroState.Idle -> macro.isEnabled && macro.macro.isNotEmpty()
         MacroState.Playing -> playing
         MacroState.Recording -> false
     }
@@ -433,20 +435,30 @@ private fun MacroRow(
                 }
             )
         }
-        Text(
-            text = macro.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            modifier = Modifier.weight(1f)
-        )
+        MacroName(macro = macro, selected = selected, modifier = Modifier.weight(1f))
     }
 }
 
-/** A macro row in edit mode: move buttons, the name and a delete button, with nothing else clickable. */
+/** The macro's name, dimmed while the macro is disabled. */
+@Composable
+private fun MacroName(macro: Macro, selected: Boolean, modifier: Modifier = Modifier) {
+    val color = if (selected) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    Text(
+        text = macro.name,
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (macro.isEnabled) color else color.copy(alpha = 0.38f),
+        modifier = modifier
+    )
+}
+
+/**
+ * A macro row in edit mode: move buttons, the name, an enable toggle and a delete button, with
+ * nothing else clickable.
+ */
 @Composable
 private fun EditRow(
     macro: Macro,
@@ -456,6 +468,7 @@ private fun EditRow(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    onEnabledChange: (enabled: Boolean) -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     Row(
@@ -488,16 +501,27 @@ private fun EditRow(
                 contentDescription = stringResource(R.string.macro_move_down)
             )
         }
-        Text(
-            text = macro.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            modifier = Modifier.weight(1f)
-        )
+        MacroName(macro = macro, selected = selected, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = { onEnabledChange(!macro.isEnabled) },
+            modifier = Modifier.size(36.dp),
+            enabled = enabled
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (macro.isEnabled) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                ),
+                // Names the action, like the other buttons in the row.
+                contentDescription = stringResource(
+                    if (macro.isEnabled) R.string.macro_disable else R.string.macro_enable
+                ),
+                tint = if (enabled && macro.isEnabled) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    LocalContentColor.current
+                }
+            )
+        }
         IconButton(
             onClick = onDeleteClick,
             modifier = Modifier.size(36.dp),
@@ -525,6 +549,7 @@ private fun MainWindowPreview() {
                     Macro("巨集 1", listOf(tap)),
                     Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap)),
                     Macro("巨集 3", emptyList()),
+                    Macro("巨集 4", listOf(tap), isEnabled = false),
                 ),
                 selectedIndex = 1,
                 playingIndex = -1,
@@ -536,6 +561,7 @@ private fun MainWindowPreview() {
                 onDeleteClick = {},
                 onRename = { _, _ -> },
                 onMove = { _, _ -> },
+                onEnabledChange = { _, _ -> },
                 onTextInputActiveChange = {}
             )
         }
