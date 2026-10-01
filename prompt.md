@@ -94,3 +94,6 @@ FloatingWindow 雙擊兩次 app_name 時觸發 minimize
 只用做法2 (播放前把方塊移到手勢碰不到的位置)，選一個離原本位置最近的地方，播完不用移動回原位
 
 已錄製巨集列表 item 的編輯模式，新增 isEnable icon ，可以決定是否暫時 disable 某個巨集，不可點擊播放 (開關狀態需存入 json 中)
+
+已錄製巨集列表 column item 觸發播放巨集的點擊事件時，不再影響錄製巨集時的選擇
+改為在編輯模式下的 column item 點擊

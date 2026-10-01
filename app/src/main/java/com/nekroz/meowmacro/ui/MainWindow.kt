@@ -178,6 +178,9 @@ fun MainWindow(
                             selected = index == selectedIndex,
                             // The controller also ignores edits unless idle.
                             enabled = macroState == MacroState.Idle,
+                            // Switching the target mid-recording would split the recording.
+                            selectable = macroState != MacroState.Recording,
+                            onClick = { onSelect(index) },
                             canMoveUp = index > 0,
                             canMoveDown = index < macros.lastIndex,
                             onMoveUp = { onMove(index, index - 1) },
@@ -191,7 +194,6 @@ fun MainWindow(
                             selected = index == selectedIndex,
                             playing = index == playingIndex,
                             macroState = macroState,
-                            onClick = { onSelect(index) },
                             onLongClick = {
                                 pendingDelete = -1
                                 pendingRename = index
@@ -392,11 +394,10 @@ private fun MacroRow(
     selected: Boolean,
     playing: Boolean,
     macroState: MacroState,
-    onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPlayClick: () -> Unit,
 ) {
-    // While playing, only the playing macro can be clicked to stop; other rows just select.
+    // While playing, only the playing macro can be clicked, to stop it.
     val canPlay = when (macroState) {
         MacroState.Idle -> macro.isEnabled && macro.macro.isNotEmpty()
         MacroState.Playing -> playing
@@ -415,10 +416,8 @@ private fun MacroRow(
                 onClickLabel = if (canPlay) playLabel else null,
                 onLongClickLabel = stringResource(R.string.macro_rename),
                 onLongClick = onLongClick,
-                onClick = {
-                    onClick()
-                    if (canPlay) onPlayClick()
-                }
+                // Playing never changes the recording target; that is picked in edit mode.
+                onClick = { if (canPlay) onPlayClick() }
             ),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -456,14 +455,16 @@ private fun MacroName(macro: Macro, selected: Boolean, modifier: Modifier = Modi
 }
 
 /**
- * A macro row in edit mode: move buttons, the name, an enable toggle and a delete button, with
- * nothing else clickable.
+ * A macro row in edit mode: move buttons, the name, an enable toggle and a delete button. Clicking
+ * the row itself selects the macro as the recording target.
  */
 @Composable
 private fun EditRow(
     macro: Macro,
     selected: Boolean,
     enabled: Boolean,
+    selectable: Boolean,
+    onClick: () -> Unit,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
@@ -477,6 +478,11 @@ private fun EditRow(
             .clip(RoundedCornerShape(8.dp))
             .background(
                 if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+            )
+            .clickable(
+                enabled = selectable,
+                onClickLabel = stringResource(R.string.macro_select),
+                onClick = onClick
             ),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
