@@ -60,7 +60,7 @@ class MacroRepo(context: Context) {
 }
 
 // JSON format:
-// [{"name": "…", "enabled": true, "events": [
+// [{"name": "…", "enabled": true, "minimizeOnPlay": true, "pin": 0, "events": [
 //     {"type": "wait", "duration": 120},
 //     {"type": "tap", "x": 1.0, "y": 2.0, "duration": 80},
 //     {"type": "swipe", "points": [x0, y0, x1, y1, …], "duration": 300}]}]
@@ -70,6 +70,8 @@ private fun macrosToJson(macros: List<Macro>) = JSONArray().apply {
         put(JSONObject().apply {
             put("name", macro.name)
             put("enabled", macro.isEnabled)
+            put("minimizeOnPlay", macro.minimizeOnPlay)
+            put("pin", macro.pinSlot)
             put("events", JSONArray().apply { macro.macro.forEach { put(eventToJson(it)) } })
         })
     }
@@ -106,8 +108,10 @@ private fun parseMacros(json: JSONArray): List<Macro> = List(json.length()) { i 
     Macro(
         name = obj.getString("name"),
         macro = List(events.length()) { parseEvent(events.getJSONObject(it)) },
-        // Absent in files saved before macros could be disabled.
-        isEnabled = obj.optBoolean("enabled", true)
+        // All absent in files saved before these options existed.
+        isEnabled = obj.optBoolean("enabled", true),
+        minimizeOnPlay = obj.optBoolean("minimizeOnPlay", true),
+        pinSlot = obj.optInt("pin", 0).coerceIn(0, MAX_PINNED_MACROS)
     )
 }
 

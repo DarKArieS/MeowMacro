@@ -89,7 +89,12 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                         onMinimizedChange = ::setMinimized,
                         // Get out of the way of the gestures being recorded or played back,
                         // and color the block so the running macro state stays visible.
-                        minimizeRequested = macroController.state != MacroState.Idle,
+                        minimizeRequested = when (macroController.state) {
+                            MacroState.Recording -> true
+                            MacroState.Playing -> macroController.macros
+                                .getOrNull(macroController.playingIndex)?.minimizeOnPlay == true
+                            MacroState.Idle -> false
+                        },
                         minimizedColor = when (macroController.state) {
                             MacroState.Recording -> RecordingRed
                             MacroState.Playing -> PlayingGreen
@@ -109,6 +114,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                             onRename = macroController::renameMacro,
                             onMove = macroController::moveMacro,
                             onEnabledChange = macroController::setMacroEnabled,
+                            onMinimizeOnPlayChange = macroController::setMacroMinimizeOnPlay,
+                            onPinSlotChange = macroController::setMacroPinSlot,
                             onTextInputActiveChange = ::setWindowFocusable,
                             onPlayClick = macroController::togglePlayback
                         )

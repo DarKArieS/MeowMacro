@@ -43,6 +43,7 @@ private const val PASS_THROUGH_MAX_ATTEMPTS = 3
  * Playback stops when the user touches the screen. Touches on the floating window don't count, so
  * the watcher window must sit below it as well. [beforePlayback] is given the events about to be
  * played and has to get the floating window out of their way; the first gesture waits for it.
+ * It isn't called for a macro whose [Macro.minimizeOnPlay] is off: the window then stays as it is.
  */
 class MacroController(
     private val context: Context,
@@ -171,6 +172,26 @@ class MacroController(
         save()
     }
 
+    /** Sets whether playing the macro at [index] minimizes the floating window. Only while idle. */
+    fun setMacroMinimizeOnPlay(index: Int, minimize: Boolean) {
+        if (state != MacroState.Idle || index !in macros.indices) return
+        if (macros[index].minimizeOnPlay == minimize) return
+        macros = macros.toMutableList().also { it[index] = it[index].copy(minimizeOnPlay = minimize) }
+        save()
+    }
+
+    /**
+     * Pins the macro at [index] to [slot], or unpins it with 0. Only while idle. A slot already
+     * used by another macro is refused.
+     */
+    fun setMacroPinSlot(index: Int, slot: Int) {
+        if (state != MacroState.Idle || index !in macros.indices) return
+        if (slot !in 0..MAX_PINNED_MACROS || macros[index].pinSlot == slot) return
+        if (slot != 0 && macros.any { it.pinSlot == slot }) return
+        macros = macros.toMutableList().also { it[index] = it[index].copy(pinSlot = slot) }
+        save()
+    }
+
     /** Removes the macro at [index]. Only allowed while idle, so indices can't shift under use. */
     fun deleteMacro(index: Int) {
         if (state != MacroState.Idle || index !in macros.indices) return
@@ -214,7 +235,7 @@ class MacroController(
             MacroState.Idle -> {
                 val macro = macros.getOrNull(index)
                 if (macro == null || !macro.isEnabled || macro.macro.isEmpty()) return
-                if (requireAccessibility()) startPlayback(index, macro.macro)
+                if (requireAccessibility()) startPlayback(index, macro)
             }
             MacroState.Recording -> Unit
         }
@@ -234,14 +255,14 @@ class MacroController(
         captureView.visibility = View.VISIBLE
     }
 
-    private fun startPlayback(index: Int, events: List<MacroEvent>) {
+    private fun startPlayback(index: Int, macro: Macro) {
         state = MacroState.Playing
         playingIndex = index
         touchWatchView.visibility = View.VISIBLE
         job = scope.launch {
             try {
-                beforePlayback(events)
-                for (event in events) {
+                if (macro.minimizeOnPlay) beforePlayback(macro.macro)
+                for (event in macro.macro) {
                     if (event is MacroEvent.Wait) {
                         delay(event.durationMillis)
                         continue

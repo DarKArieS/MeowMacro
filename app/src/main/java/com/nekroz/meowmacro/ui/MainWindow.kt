@@ -46,6 +46,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -53,6 +55,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.floating.FloatingWindow
+import com.nekroz.meowmacro.macro.MAX_PINNED_MACROS
 import com.nekroz.meowmacro.macro.Macro
 import com.nekroz.meowmacro.macro.MacroEvent
 import com.nekroz.meowmacro.macro.MacroState
@@ -75,6 +78,8 @@ fun MainWindow(
     onRename: (index: Int, name: String) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onEnabledChange: (index: Int, enabled: Boolean) -> Unit,
+    onMinimizeOnPlayChange: (index: Int, minimize: Boolean) -> Unit,
+    onPinSlotChange: (index: Int, slot: Int) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
     onTextInputActiveChange: (active: Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -85,9 +90,21 @@ fun MainWindow(
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
     var pendingRename by rememberSaveable { mutableIntStateOf(-1) }
-    // While true, rows show move, enable and delete buttons instead of play.
+    // While true, rows show move, option and delete buttons instead of play.
     var editMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
+        val pinned = macros.withIndex()
+            .filter { it.value.pinSlot > 0 }
+            .sortedBy { it.value.pinSlot }
+        if (pinned.isNotEmpty()) {
+            PinnedRow(
+                pinned = pinned,
+                macroState = macroState,
+                playingIndex = playingIndex,
+                onPlayClick = onPlayClick
+            )
+            HorizontalDivider()
+        }
         val selected = macros.getOrNull(selectedIndex)
         SectionHeader(
             title = selected?.name ?: stringResource(R.string.macro_none_selected),
@@ -186,6 +203,11 @@ fun MainWindow(
                             onMoveUp = { onMove(index, index - 1) },
                             onMoveDown = { onMove(index, index + 1) },
                             onEnabledChange = { onEnabledChange(index, it) },
+                            onMinimizeOnPlayChange = { onMinimizeOnPlayChange(index, it) },
+                            takenPinSlots = macros
+                                .filterIndexed { other, _ -> other != index }
+                                .mapTo(mutableSetOf()) { it.pinSlot },
+                            onPinSlotChange = { onPinSlotChange(index, it) },
                             onDeleteClick = { pendingDelete = index }
                         )
                     } else {
@@ -388,6 +410,52 @@ private fun RecordBar(
     }
 }
 
+/** The pinned macros as numbered buttons, in slot order; clicking one plays or stops it. */
+@Composable
+private fun PinnedRow(
+    pinned: List<IndexedValue<Macro>>,
+    macroState: MacroState,
+    playingIndex: Int,
+    onPlayClick: (index: Int) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        pinned.forEach { (index, macro) ->
+            val playing = index == playingIndex
+            val canPlay = macro.canPlay(playing, macroState)
+            IconButton(
+                onClick = { onPlayClick(index) },
+                modifier = Modifier
+                    .size(36.dp)
+                    .semantics { contentDescription = macro.name },
+                enabled = canPlay
+            ) {
+                if (playing) {
+                    Icon(painter = painterResource(R.drawable.ic_stop), contentDescription = null)
+                } else {
+                    PinNumberIcon(
+                        number = macro.pinSlot,
+                        containerColor = if (canPlay) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            LocalContentColor.current
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** While playing, only the playing macro can be clicked, to stop it. */
+private fun Macro.canPlay(playing: Boolean, macroState: MacroState) = when (macroState) {
+    MacroState.Idle -> isEnabled && macro.isNotEmpty()
+    MacroState.Playing -> playing
+    MacroState.Recording -> false
+}
+
 @Composable
 private fun MacroRow(
     macro: Macro,
@@ -397,12 +465,7 @@ private fun MacroRow(
     onLongClick: () -> Unit,
     onPlayClick: () -> Unit,
 ) {
-    // While playing, only the playing macro can be clicked, to stop it.
-    val canPlay = when (macroState) {
-        MacroState.Idle -> macro.isEnabled && macro.macro.isNotEmpty()
-        MacroState.Playing -> playing
-        MacroState.Recording -> false
-    }
+    val canPlay = macro.canPlay(playing, macroState)
     val playLabel = stringResource(if (playing) R.string.macro_stop_playing else R.string.macro_play)
     Row(
         modifier = Modifier
@@ -455,8 +518,8 @@ private fun MacroName(macro: Macro, selected: Boolean, modifier: Modifier = Modi
 }
 
 /**
- * A macro row in edit mode: move buttons, the name, an enable toggle and a delete button. Clicking
- * the row itself selects the macro as the recording target.
+ * A macro row in edit mode: move buttons, the name, enable and minimize-on-play toggles, a pin
+ * button and a delete button. Clicking the row itself selects the macro as the recording target.
  */
 @Composable
 private fun EditRow(
@@ -470,6 +533,9 @@ private fun EditRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onEnabledChange: (enabled: Boolean) -> Unit,
+    onMinimizeOnPlayChange: (minimize: Boolean) -> Unit,
+    takenPinSlots: Set<Int>,
+    onPinSlotChange: (slot: Int) -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     Row(
@@ -529,6 +595,41 @@ private fun EditRow(
             )
         }
         IconButton(
+            onClick = { onMinimizeOnPlayChange(!macro.minimizeOnPlay) },
+            modifier = Modifier.size(36.dp),
+            enabled = enabled
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (macro.minimizeOnPlay) {
+                        R.drawable.ic_close_fullscreen
+                    } else {
+                        R.drawable.ic_open_in_full
+                    }
+                ),
+                contentDescription = stringResource(
+                    if (macro.minimizeOnPlay) {
+                        R.string.macro_minimize_on_play_disable
+                    } else {
+                        R.string.macro_minimize_on_play_enable
+                    }
+                ),
+                tint = if (enabled && macro.minimizeOnPlay) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    LocalContentColor.current
+                }
+            )
+        }
+        PinButton(
+            slot = macro.pinSlot,
+            takenSlots = takenPinSlots,
+            maxSlots = MAX_PINNED_MACROS,
+            onSlotChange = onPinSlotChange,
+            modifier = Modifier.size(36.dp),
+            enabled = enabled
+        )
+        IconButton(
             onClick = onDeleteClick,
             modifier = Modifier.size(36.dp),
             enabled = enabled
@@ -552,10 +653,10 @@ private fun MainWindowPreview() {
             MainWindow(
                 macroState = MacroState.Idle,
                 macros = listOf(
-                    Macro("巨集 1", listOf(tap)),
-                    Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap)),
+                    Macro("巨集 1", listOf(tap), pinSlot = 2),
+                    Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap), minimizeOnPlay = false),
                     Macro("巨集 3", emptyList()),
-                    Macro("巨集 4", listOf(tap), isEnabled = false),
+                    Macro("巨集 4", listOf(tap), isEnabled = false, pinSlot = 1),
                 ),
                 selectedIndex = 1,
                 playingIndex = -1,
@@ -568,6 +669,8 @@ private fun MainWindowPreview() {
                 onRename = { _, _ -> },
                 onMove = { _, _ -> },
                 onEnabledChange = { _, _ -> },
+                onMinimizeOnPlayChange = { _, _ -> },
+                onPinSlotChange = { _, _ -> },
                 onTextInputActiveChange = {}
             )
         }

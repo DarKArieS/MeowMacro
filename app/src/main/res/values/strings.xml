@@ -37,6 +37,11 @@
     <string name="macro_select">選為錄製目標</string>
     <string name="macro_enable">啟用巨集</string>
     <string name="macro_disable">停用巨集</string>
+    <string name="macro_minimize_on_play_enable">播放時最小化視窗</string>
+    <string name="macro_minimize_on_play_disable">播放時不最小化視窗</string>
+    <string name="macro_pin">釘選巨集</string>
+    <string name="macro_pinned">已釘選為 %1$d</string>
+    <string name="macro_unpin">取消釘選</string>
     <string name="accessibility_required">請啟用 MeowMacro 無障礙服務以錄製及播放巨集</string>
     <string name="accessibility_service_label">MeowMacro 巨集</string>
     <string name="accessibility_service_desc">用於將錄製的點擊與滑動送至其他 app，以及重播巨集。</string>
