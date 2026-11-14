@@ -23,6 +23,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.nekroz.meowmacro.ui.MainWindow
+import com.nekroz.meowmacro.ui.UiPrefs
 import com.nekroz.meowmacro.R
 import com.nekroz.meowmacro.macro.MacroController
 import com.nekroz.meowmacro.macro.MacroEvent
@@ -49,6 +50,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
     private var overlayView: ComposeView? = null
     private var isMinimized = false
     private lateinit var macroController: MacroController
+    private lateinit var uiPrefs: UiPrefs
 
     override fun onCreate() {
         // Must restore saved state while the lifecycle is still INITIALIZED.
@@ -59,6 +61,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         startInForeground()
 
         windowManager = getSystemService(WindowManager::class.java)
+        uiPrefs = UiPrefs(this)
         // Adds the recording overlay, so it must come before the floating window to stay below it.
         macroController =
             MacroController(this, windowManager, lifecycleScope, MacroRepo(this), ::makeWayFor)
@@ -117,6 +120,10 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                             onMinimizeOnPlayChange = macroController::setMacroMinimizeOnPlay,
                             onPinSlotChange = macroController::setMacroPinSlot,
                             onTextInputActiveChange = ::setWindowFocusable,
+                            recordBarExpanded = uiPrefs.recordBarExpanded,
+                            onRecordBarExpandedChange = { uiPrefs.recordBarExpanded = it },
+                            listExpanded = uiPrefs.listExpanded,
+                            onListExpandedChange = { uiPrefs.listExpanded = it },
                             onPlayClick = macroController::togglePlayback
                         )
                     }

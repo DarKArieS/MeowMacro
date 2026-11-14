@@ -82,10 +82,12 @@ fun MainWindow(
     onPinSlotChange: (index: Int, slot: Int) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
     onTextInputActiveChange: (active: Boolean) -> Unit,
+    recordBarExpanded: Boolean,
+    onRecordBarExpandedChange: (expanded: Boolean) -> Unit,
+    listExpanded: Boolean,
+    onListExpandedChange: (expanded: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var recordBarExpanded by rememberSaveable { mutableStateOf(true) }
-    var listExpanded by rememberSaveable { mutableStateOf(true) }
     // Index of the macro awaiting delete confirmation, or -1.
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
@@ -111,7 +113,7 @@ fun MainWindow(
             expanded = recordBarExpanded,
             collapseLabel = stringResource(R.string.macro_record_bar_collapse),
             expandLabel = stringResource(R.string.macro_record_bar_expand),
-            onToggleExpanded = { recordBarExpanded = !recordBarExpanded }
+            onToggleExpanded = { onRecordBarExpandedChange(!recordBarExpanded) }
         )
         if (recordBarExpanded) {
             RecordBar(
@@ -129,7 +131,7 @@ fun MainWindow(
                 expanded = listExpanded,
                 collapseLabel = stringResource(R.string.macro_list_collapse),
                 expandLabel = stringResource(R.string.macro_list_expand),
-                onToggleExpanded = { listExpanded = !listExpanded },
+                onToggleExpanded = { onListExpandedChange(!listExpanded) },
                 modifier = Modifier.weight(1f)
             )
             if (listExpanded && macros.isNotEmpty()) {
@@ -671,7 +673,11 @@ private fun MainWindowPreview() {
                 onEnabledChange = { _, _ -> },
                 onMinimizeOnPlayChange = { _, _ -> },
                 onPinSlotChange = { _, _ -> },
-                onTextInputActiveChange = {}
+                onTextInputActiveChange = {},
+                recordBarExpanded = true,
+                onRecordBarExpandedChange = {},
+                listExpanded = true,
+                onListExpandedChange = {}
             )
         }
     }
