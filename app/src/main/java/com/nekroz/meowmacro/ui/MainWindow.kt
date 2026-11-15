@@ -92,7 +92,7 @@ fun MainWindow(
     var pendingDelete by rememberSaveable { mutableIntStateOf(-1) }
     // Index of the macro being renamed, or -1.
     var pendingRename by rememberSaveable { mutableIntStateOf(-1) }
-    // While true, rows show move, option and delete buttons instead of play.
+    // While true, rows show move, option and delete buttons, and clicking one selects it.
     var editMode by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
         val pinned = macros.withIndex()
@@ -216,13 +216,11 @@ fun MainWindow(
                         MacroRow(
                             macro = macro,
                             selected = index == selectedIndex,
-                            playing = index == playingIndex,
                             macroState = macroState,
                             onLongClick = {
                                 pendingDelete = -1
                                 pendingRename = index
-                            },
-                            onPlayClick = { onPlayClick(index) }
+                            }
                         )
                     }
                 }
@@ -451,54 +449,38 @@ private fun PinnedRow(
     }
 }
 
-/** While playing, only the playing macro can be clicked, to stop it. */
+/** While playing, only the playing pinned macro can be clicked, to stop it. */
 private fun Macro.canPlay(playing: Boolean, macroState: MacroState) = when (macroState) {
     MacroState.Idle -> isEnabled && macro.isNotEmpty()
     MacroState.Playing -> playing
     MacroState.Recording -> false
 }
 
+/** A macro row outside edit mode; long-clicking it renames the macro. Macros play from the pinned row. */
 @Composable
 private fun MacroRow(
     macro: Macro,
     selected: Boolean,
-    playing: Boolean,
     macroState: MacroState,
     onLongClick: () -> Unit,
-    onPlayClick: () -> Unit,
 ) {
-    val canPlay = macro.canPlay(playing, macroState)
-    val playLabel = stringResource(if (playing) R.string.macro_stop_playing else R.string.macro_play)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 36.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(
                 if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
             )
             .combinedClickable(
                 enabled = macroState != MacroState.Recording,
-                onClickLabel = if (canPlay) playLabel else null,
                 onLongClickLabel = stringResource(R.string.macro_rename),
                 onLongClick = onLongClick,
-                // Playing never changes the recording target; that is picked in edit mode.
-                onClick = { if (canPlay) onPlayClick() }
-            ),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                onClick = {}
+            )
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Indicator only; the whole row is the play/stop target. Sized like an IconButton.
-        Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-            Icon(
-                painter = painterResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play),
-                contentDescription = null,
-                tint = if (canPlay) {
-                    LocalContentColor.current
-                } else {
-                    LocalContentColor.current.copy(alpha = 0.38f)
-                }
-            )
-        }
         MacroName(macro = macro, selected = selected, modifier = Modifier.weight(1f))
     }
 }

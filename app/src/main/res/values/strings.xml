@@ -10,8 +10,6 @@
     <string name="notification_text">懸浮視窗執行中</string>
     <string name="macro_record">開始錄製</string>
     <string name="macro_stop_recording">停止錄製</string>
-    <string name="macro_play">播放</string>
-    <string name="macro_stop_playing">停止播放</string>
     <string name="macro_event_count">%1$d 個事件</string>
     <string name="macro_recording">錄製中（%1$d）</string>
     <string name="macro_playing">播放中…</string>
