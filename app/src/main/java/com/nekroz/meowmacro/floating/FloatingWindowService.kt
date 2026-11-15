@@ -6,9 +6,12 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.ComposeView
@@ -33,6 +36,7 @@ import com.nekroz.meowmacro.macro.gestureCount
 import com.nekroz.meowmacro.ui.theme.MeowMacroTheme
 import com.nekroz.meowmacro.ui.theme.PlayingGreen
 import com.nekroz.meowmacro.ui.theme.RecordingRed
+import kotlin.math.roundToInt
 
 /**
  * Hosts the app UI in a draggable overlay window drawn on top of other apps.
@@ -49,6 +53,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
     private lateinit var layoutParams: WindowManager.LayoutParams
     private var overlayView: ComposeView? = null
     private var isMinimized = false
+    /** Screen bounds the window was last positioned on; see [relocateForScreenChange]. */
+    private var lastScreen: Rect? = null
     private lateinit var macroController: MacroController
     private lateinit var uiPrefs: UiPrefs
 
@@ -138,6 +144,7 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         }
         windowManager.addView(view, layoutParams)
         overlayView = view
+        lastScreen = Rect(windowManager.currentWindowMetrics.bounds)
     }
 
     override fun onDestroy() {
@@ -168,20 +175,59 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
         isMinimized = minimized
     }
 
-    private fun moveWindowBy(dx: Int, dy: Int): Boolean {
-        val view = overlayView ?: return false
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Rotation or folding/unfolding resizes the screen. The window metrics may only catch up
+        // after this callback, so check again on the next frame; relocating is a no-op if done.
+        relocateForScreenChange()
+        overlayView?.post(::relocateForScreenChange)
+    }
 
-        val metrics = windowManager.currentWindowMetrics
-        val screen = metrics.bounds
+    /**
+     * Keeps the window at the same relative position within the range it can be dragged over when
+     * the screen size changes, so it doesn't end up off screen.
+     */
+    private fun relocateForScreenChange() {
+        val view = overlayView ?: return
+        val screen = windowManager.currentWindowMetrics.bounds
+        val old = lastScreen ?: return
+        if (old.width() == screen.width() && old.height() == screen.height()) return
+        lastScreen = Rect(screen)
+
+        val (oldRangeX, oldRangeY) = dragRange(view, old)
+        val (newRangeX, newRangeY) = dragRange(view, screen)
+        layoutParams.x = rescale(layoutParams.x, oldRangeX, newRangeX)
+        layoutParams.y = rescale(layoutParams.y, oldRangeY, newRangeY)
+        windowManager.updateViewLayout(view, layoutParams)
+    }
+
+    /** The x and y ranges the window's top-left corner may be dragged over on [screen]. */
+    private fun dragRange(view: View, screen: Rect): Pair<IntRange, IntRange> {
         val topInset = 0 // 避免高於狀態欄，之後再也無法拖動視窗
-
         // The expanded window may hang half off screen; the minimized block must stay fully on it.
         val offX = if (isMinimized) 0 else view.width / 2
         val offY = if (isMinimized) 0 else view.height / 2
-        val x = (layoutParams.x + dx)
-            .coerceIn(-offX, maxOf(-offX, screen.width() - view.width + offX))
-        val y = (layoutParams.y + dy)
-            .coerceIn(topInset, maxOf(topInset, screen.height() - view.height + offY))
+        return -offX..maxOf(-offX, screen.width() - view.width + offX) to
+            topInset..maxOf(topInset, screen.height() - view.height + offY)
+    }
+
+    private fun rescale(value: Int, from: IntRange, to: IntRange): Int {
+        val fromSpan = from.last - from.first
+        val fraction = if (fromSpan > 0) {
+            ((value - from.first).toFloat() / fromSpan).coerceIn(0f, 1f)
+        } else 0f
+        return to.first + (fraction * (to.last - to.first)).roundToInt()
+    }
+
+    private fun moveWindowBy(dx: Int, dy: Int): Boolean {
+        val view = overlayView ?: return false
+        // Don't let a move that comes before the configuration change clamp the old position.
+        relocateForScreenChange()
+
+        val screen = windowManager.currentWindowMetrics.bounds
+        val (rangeX, rangeY) = dragRange(view, screen)
+        val x = (layoutParams.x + dx).coerceIn(rangeX)
+        val y = (layoutParams.y + dy).coerceIn(rangeY)
         if (x == layoutParams.x && y == layoutParams.y) return false
         layoutParams.x = x
         layoutParams.y = y
