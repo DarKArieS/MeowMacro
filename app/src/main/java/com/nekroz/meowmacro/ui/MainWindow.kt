@@ -77,7 +77,6 @@ fun MainWindow(
     onDeleteClick: (index: Int) -> Unit,
     onRename: (index: Int, name: String) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onEnabledChange: (index: Int, enabled: Boolean) -> Unit,
     onMinimizeOnPlayChange: (index: Int, minimize: Boolean) -> Unit,
     onPinSlotChange: (index: Int, slot: Int) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
@@ -204,7 +203,6 @@ fun MainWindow(
                             canMoveDown = index < macros.lastIndex,
                             onMoveUp = { onMove(index, index - 1) },
                             onMoveDown = { onMove(index, index + 1) },
-                            onEnabledChange = { onEnabledChange(index, it) },
                             onMinimizeOnPlayChange = { onMinimizeOnPlayChange(index, it) },
                             takenPinSlots = macros
                                 .filterIndexed { other, _ -> other != index }
@@ -451,7 +449,7 @@ private fun PinnedRow(
 
 /** While playing, only the playing pinned macro can be clicked, to stop it. */
 private fun Macro.canPlay(playing: Boolean, macroState: MacroState) = when (macroState) {
-    MacroState.Idle -> isEnabled && macro.isNotEmpty()
+    MacroState.Idle -> macro.isNotEmpty()
     MacroState.Playing -> playing
     MacroState.Recording -> false
 }
@@ -485,25 +483,23 @@ private fun MacroRow(
     }
 }
 
-/** The macro's name, dimmed while the macro is disabled. */
 @Composable
 private fun MacroName(macro: Macro, selected: Boolean, modifier: Modifier = Modifier) {
-    val color = if (selected) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
     Text(
         text = macro.name,
         style = MaterialTheme.typography.bodyMedium,
-        color = if (macro.isEnabled) color else color.copy(alpha = 0.38f),
+        color = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
         modifier = modifier
     )
 }
 
 /**
- * A macro row in edit mode: move buttons, the name, enable and minimize-on-play toggles, a pin
- * button and a delete button. Clicking the row itself selects the macro as the recording target.
+ * A macro row in edit mode: move buttons, the name, a minimize-on-play toggle, a pin button and a
+ * delete button. Clicking the row itself selects the macro as the recording target.
  */
 @Composable
 private fun EditRow(
@@ -516,7 +512,6 @@ private fun EditRow(
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
-    onEnabledChange: (enabled: Boolean) -> Unit,
     onMinimizeOnPlayChange: (minimize: Boolean) -> Unit,
     takenPinSlots: Set<Int>,
     onPinSlotChange: (slot: Int) -> Unit,
@@ -558,26 +553,6 @@ private fun EditRow(
             )
         }
         MacroName(macro = macro, selected = selected, modifier = Modifier.weight(1f))
-        IconButton(
-            onClick = { onEnabledChange(!macro.isEnabled) },
-            modifier = Modifier.size(36.dp),
-            enabled = enabled
-        ) {
-            Icon(
-                painter = painterResource(
-                    if (macro.isEnabled) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
-                ),
-                // Names the action, like the other buttons in the row.
-                contentDescription = stringResource(
-                    if (macro.isEnabled) R.string.macro_disable else R.string.macro_enable
-                ),
-                tint = if (enabled && macro.isEnabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    LocalContentColor.current
-                }
-            )
-        }
         IconButton(
             onClick = { onMinimizeOnPlayChange(!macro.minimizeOnPlay) },
             modifier = Modifier.size(36.dp),
@@ -640,7 +615,7 @@ private fun MainWindowPreview() {
                     Macro("巨集 1", listOf(tap), pinSlot = 2),
                     Macro("巨集 2", listOf(tap, MacroEvent.Wait(300), tap), minimizeOnPlay = false),
                     Macro("巨集 3", emptyList()),
-                    Macro("巨集 4", listOf(tap), isEnabled = false, pinSlot = 1),
+                    Macro("巨集 4", listOf(tap), pinSlot = 1),
                 ),
                 selectedIndex = 1,
                 playingIndex = -1,
@@ -652,7 +627,6 @@ private fun MainWindowPreview() {
                 onDeleteClick = {},
                 onRename = { _, _ -> },
                 onMove = { _, _ -> },
-                onEnabledChange = { _, _ -> },
                 onMinimizeOnPlayChange = { _, _ -> },
                 onPinSlotChange = { _, _ -> },
                 onTextInputActiveChange = {},

@@ -164,14 +164,6 @@ class MacroController(
         save()
     }
 
-    /** Enables or disables the macro at [index]. Only allowed while idle, so it can't be playing. */
-    fun setMacroEnabled(index: Int, enabled: Boolean) {
-        if (state != MacroState.Idle || index !in macros.indices) return
-        if (macros[index].isEnabled == enabled) return
-        macros = macros.toMutableList().also { it[index] = it[index].copy(isEnabled = enabled) }
-        save()
-    }
-
     /** Sets whether playing the macro at [index] minimizes the floating window. Only while idle. */
     fun setMacroMinimizeOnPlay(index: Int, minimize: Boolean) {
         if (state != MacroState.Idle || index !in macros.indices) return
@@ -234,7 +226,7 @@ class MacroController(
             MacroState.Playing -> stop()
             MacroState.Idle -> {
                 val macro = macros.getOrNull(index)
-                if (macro == null || !macro.isEnabled || macro.macro.isEmpty()) return
+                if (macro == null || macro.macro.isEmpty()) return
                 if (requireAccessibility()) startPlayback(index, macro)
             }
             MacroState.Recording -> Unit

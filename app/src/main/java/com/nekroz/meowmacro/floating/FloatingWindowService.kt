@@ -122,7 +122,6 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                             onDeleteClick = macroController::deleteMacro,
                             onRename = macroController::renameMacro,
                             onMove = macroController::moveMacro,
-                            onEnabledChange = macroController::setMacroEnabled,
                             onMinimizeOnPlayChange = macroController::setMacroMinimizeOnPlay,
                             onPinSlotChange = macroController::setMacroPinSlot,
                             onTextInputActiveChange = ::setWindowFocusable,

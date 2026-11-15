@@ -33,8 +33,6 @@
     <string name="macro_move_up">上移</string>
     <string name="macro_move_down">下移</string>
     <string name="macro_select">選為錄製目標</string>
-    <string name="macro_enable">啟用巨集</string>
-    <string name="macro_disable">停用巨集</string>
     <string name="macro_minimize_on_play_enable">播放時最小化視窗</string>
     <string name="macro_minimize_on_play_disable">播放時不最小化視窗</string>
     <string name="macro_pin">釘選巨集</string>
