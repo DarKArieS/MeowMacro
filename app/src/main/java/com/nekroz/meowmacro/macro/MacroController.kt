@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.core.content.edit
 import com.nekroz.meowmacro.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -40,8 +41,8 @@ private const val PASS_THROUGH_MAX_ATTEMPTS = 3
  * create this before adding the floating window. Each captured gesture is immediately re-injected
  * through [MacroAccessibilityService] so the app underneath still receives it.
  *
- * Playback stops when the user touches the screen. Touches on the floating window don't count, so
- * the watcher window must sit below it as well. [beforePlayback] is given the events about to be
+ * Playback stops when the user touches the screen, unless [stopOnTouch] is off.
+ * Touches on the floating window don't count, so the watcher window must sit below it as well. [beforePlayback] is given the events about to be
  * played and has to get the floating window out of their way; the first gesture waits for it.
  * It isn't called for a macro whose [Macro.minimizeOnPlay] is off: the window then stays as it is.
  */
@@ -68,6 +69,17 @@ class MacroController(
     /** Events captured so far by the recording in progress. */
     var recordingEvents by mutableStateOf<List<MacroEvent>>(emptyList())
         private set
+
+    private val settings = context.getSharedPreferences(SETTINGS_NAME, Context.MODE_PRIVATE)
+
+    /** Whether the user touching the screen stops playback; applies to all macros, kept across restarts. */
+    var stopOnTouch by mutableStateOf(settings.getBoolean(KEY_STOP_ON_TOUCH, true))
+        private set
+
+    fun updateStopOnTouch(stop: Boolean) {
+        stopOnTouch = stop
+        settings.edit { putBoolean(KEY_STOP_ON_TOUCH, stop) }
+    }
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var job: Job? = null
@@ -250,6 +262,7 @@ class MacroController(
     private fun startPlayback(index: Int, macro: Macro) {
         state = MacroState.Playing
         playingIndex = index
+        // Watched even with stopOnTouch off, so turning it on mid-playback takes effect.
         touchWatchView.visibility = View.VISIBLE
         job = scope.launch {
             try {
@@ -268,8 +281,9 @@ class MacroController(
                         gestureInFlight = false
                         lastGestureEnd = SystemClock.uptimeMillis()
                     }
-                    // The user touching the screen cancels the injected gesture: stop playing.
-                    if (!completed) break
+                    // The user touching the screen cancels the injected gesture: stop playing,
+                    // or else carry on with the next event.
+                    if (!completed && stopOnTouch) break
                 }
             } finally {
                 touchWatchView.visibility = View.GONE
@@ -312,7 +326,7 @@ class MacroController(
     }
 
     private fun onOutsideTouch(event: MotionEvent) {
-        if (state != MacroState.Playing) return
+        if (state != MacroState.Playing || !stopOnTouch) return
         // Our own injected gesture is reported too; its down happened before it ended. A user
         // touch during a gesture cancels that gesture instead, which stops playback as well.
         if (gestureInFlight || event.eventTime <= lastGestureEnd) return
@@ -393,5 +407,10 @@ class MacroController(
             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         return false
+    }
+
+    private companion object {
+        const val SETTINGS_NAME = "playback"
+        const val KEY_STOP_ON_TOUCH = "stop_on_touch"
     }
 }

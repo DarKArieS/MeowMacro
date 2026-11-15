@@ -111,3 +111,6 @@ FloatingWindow 雙擊兩次 app_name 時觸發 minimize
 移除已錄製巨集清單點擊播放的功能
 
 移除已錄製巨集編輯模式 enable/disable 功能
+
+已錄製巨集編輯模式新增是否在「播放巨集時，如果有其他觸控輸入，中斷播放」開關
+stopOnTouch改為全域開關，放在編輯模式確定按鈕的左邊

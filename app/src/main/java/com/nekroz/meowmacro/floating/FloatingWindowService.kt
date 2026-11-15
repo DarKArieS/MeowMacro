@@ -123,6 +123,8 @@ class FloatingWindowService : LifecycleService(), SavedStateRegistryOwner, ViewM
                             onRename = macroController::renameMacro,
                             onMove = macroController::moveMacro,
                             onMinimizeOnPlayChange = macroController::setMacroMinimizeOnPlay,
+                            stopOnTouch = macroController.stopOnTouch,
+                            onStopOnTouchChange = macroController::updateStopOnTouch,
                             onPinSlotChange = macroController::setMacroPinSlot,
                             onTextInputActiveChange = ::setWindowFocusable,
                             recordBarExpanded = uiPrefs.recordBarExpanded,

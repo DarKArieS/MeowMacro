@@ -79,6 +79,9 @@ fun MainWindow(
     onMove: (from: Int, to: Int) -> Unit,
     onMinimizeOnPlayChange: (index: Int, minimize: Boolean) -> Unit,
     onPinSlotChange: (index: Int, slot: Int) -> Unit,
+    /** Whether touching the screen stops playback, for all macros. */
+    stopOnTouch: Boolean,
+    onStopOnTouchChange: (stop: Boolean) -> Unit,
     /** Called with true while a text field needs keyboard input, and false once it's done. */
     onTextInputActiveChange: (active: Boolean) -> Unit,
     recordBarExpanded: Boolean,
@@ -134,6 +137,32 @@ fun MainWindow(
                 modifier = Modifier.weight(1f)
             )
             if (listExpanded && macros.isNotEmpty()) {
+                if (editMode) {
+                    // A global setting, not a per-macro one; it applies right away, even mid-playback.
+                    IconButton(
+                        onClick = { onStopOnTouchChange(!stopOnTouch) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (stopOnTouch) R.drawable.ic_touch_app else R.drawable.ic_do_not_touch
+                            ),
+                            // Names the action, like the other buttons.
+                            contentDescription = stringResource(
+                                if (stopOnTouch) {
+                                    R.string.macro_stop_on_touch_disable
+                                } else {
+                                    R.string.macro_stop_on_touch_enable
+                                }
+                            ),
+                            tint = if (stopOnTouch) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                LocalContentColor.current
+                            }
+                        )
+                    }
+                }
                 IconButton(
                     onClick = {
                         pendingDelete = -1
@@ -629,6 +658,8 @@ private fun MainWindowPreview() {
                 onMove = { _, _ -> },
                 onMinimizeOnPlayChange = { _, _ -> },
                 onPinSlotChange = { _, _ -> },
+                stopOnTouch = true,
+                onStopOnTouchChange = {},
                 onTextInputActiveChange = {},
                 recordBarExpanded = true,
                 onRecordBarExpandedChange = {},

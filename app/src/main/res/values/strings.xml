@@ -35,6 +35,8 @@
     <string name="macro_select">選為錄製目標</string>
     <string name="macro_minimize_on_play_enable">播放時最小化視窗</string>
     <string name="macro_minimize_on_play_disable">播放時不最小化視窗</string>
+    <string name="macro_stop_on_touch_enable">播放時觸控螢幕即中斷播放</string>
+    <string name="macro_stop_on_touch_disable">播放時觸控螢幕不中斷播放</string>
     <string name="macro_pin">釘選巨集</string>
     <string name="macro_pinned">已釘選為 %1$d</string>
     <string name="macro_unpin">取消釘選</string>
